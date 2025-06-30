@@ -1,0 +1,18 @@
+/*
+
+!datamanager/
+!tests/
+!docs/
+!.github/
+
+!.gitignore
+!README.md
+!LICENSE
+!pyproject.toml
+!uv.lock
+!.pre-commit-config.yaml
+!.python-version
+!netlify.toml
+
+# recursively re-ignore
+__pycache__
