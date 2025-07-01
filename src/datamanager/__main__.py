@@ -53,12 +53,8 @@ def list_datasets():
     console.print(table)
 
 
-@app.command()  # type: ignore[misc]
-def update(
-    name: str = typer.Argument(..., help="The logical name of the dataset."),
-    file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
-):
-    """Updates a dataset with a new version, committing and pushing the result."""
+def _run_update_logic(name: str, file: Path):
+    """The core logic for performing a dataset update."""
     console.print(f"🚀 Starting update for [bold cyan]{name}[/]...")
 
     # --- 1. Local Preparation ---
@@ -111,7 +107,6 @@ def update(
         subprocess.run(["git", "reset"])  # Unstage all files
         raise typer.Exit()
 
-    # We commit *before* the upload. The commit hash will be added to the manifest later.
     subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
     commit_hash = (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
@@ -124,7 +119,6 @@ def update(
     new_r2_key = f"{r2_dir}/{new_version}-{new_hash}.sqlite"
 
     try:
-        # Finalize the manifest entry with the correct commit hash
         new_entry = {
             "version": new_version,
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -134,16 +128,11 @@ def update(
             "commit": commit_hash,
         }
         manifest.update_latest_history_entry(name, new_entry)
-        # Amend the previous commit to include the final manifest content
         subprocess.run(["git", "add", config.MANIFEST_FILE])
         subprocess.run(
             ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
         )
-
-        console.print(f"Uploading [green]{file.name}[/] to R2...")
         core.upload_to_r2(client, file, new_r2_key)
-
-        console.print("Pushing changes to remote repository...")
         subprocess.run(["git", "push"], check=True, capture_output=True)
 
     except (subprocess.CalledProcessError, Exception) as e:
@@ -152,7 +141,6 @@ def update(
             console.print(f"[red]Error during git operation:\n{e.stderr.decode()}[/]")
         else:
             console.print(f"[red]Error during R2 upload: {e}[/]")
-
         console.print("\n[bold yellow]Rolling back changes...[/]")
         core.delete_from_r2(client, new_r2_key)
         subprocess.run(["git", "reset", "--hard", "HEAD~1"])
@@ -162,6 +150,15 @@ def update(
         raise typer.Exit(1)
 
     console.print("\n[bold green]🎉 Update complete and pushed successfully![/]")
+
+
+@app.command()  # type: ignore[misc]
+def update(
+    name: str = typer.Argument(..., help="The logical name of the dataset."),
+    file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
+):
+    """Updates a dataset with a new version, committing and pushing the result."""
+    _run_update_logic(name, file)
 
 
 @app.command()  # type: ignore[misc]
@@ -302,6 +299,55 @@ def create(
     console.print("\n[bold green]🎉 New dataset created and pushed successfully![/]")
 
 
+def _update_interactive():
+    """Guides the user through updating a dataset interactively."""
+    console.print("\n[bold]Interactive Dataset Update[/]")
+
+    # Step 1: Select the dataset
+    all_datasets = manifest.read_manifest()
+    if not all_datasets:
+        console.print("[yellow]No datasets found in the manifest to update.[/]")
+        return
+
+    dataset_names = [ds["fileName"] for ds in all_datasets]
+    selected_name = questionary.select(
+        "Which dataset would you like to update?", choices=dataset_names
+    ).ask()
+
+    if selected_name is None:
+        console.print("Update cancelled.")
+        return
+
+    # Step 2: Select the file
+    selected_file = questionary.path(
+        "Enter the path to the new .sqlite file:",
+        validate=lambda path: Path(path).is_file() and Path(path).suffix == ".sqlite",
+        file_filter=lambda path: path.endswith(".sqlite"),
+    ).ask()
+
+    if selected_file is None:
+        console.print("Update cancelled.")
+        return
+
+    # Step 3: Confirmation
+    console.print(
+        f"\nYou are about to update [cyan]{selected_name}[/] with the file [green]{selected_file}[/]."
+    )
+    proceed = questionary.confirm("Do you want to continue?", default=False).ask()
+
+    if not proceed:
+        console.print("Update cancelled.")
+        return
+
+    # Step 4: Execute the update logic
+    try:
+        _run_update_logic(name=selected_name, file=Path(selected_file))
+    except typer.Exit:
+        # Catch the Exit exception to prevent it from crashing the TUI loop
+        # The error messages are already printed by _run_update_logic
+        pass
+
+
 @app.callback(invoke_without_command=True)  # type: ignore[misc]
 def main(ctx: typer.Context):
     """Entrypoint that shows a TUI if no command is given."""
@@ -312,7 +358,7 @@ def main(ctx: typer.Context):
 
     actions: dict[str, Callable[[], None] | str] = {
         "List all datasets": list_datasets,
-        "Update an existing dataset": "update_interactive",
+        "Update an existing dataset": _update_interactive,
         "Exit": "exit",
     }
 
@@ -325,15 +371,12 @@ def main(ctx: typer.Context):
         raise typer.Exit()
 
     action = actions[choice]
-    if action == "update_interactive":
-        # This is a placeholder for the interactive update flow
-        console.print("\nStarting interactive update...")
-        # You would use questionary.select for dataset and questionary.path for file
-        # then call the update() function with the results.
-        # TODO: Implement interactive update flow
-    elif callable(action):
+    if callable(action):
         # Call the function directly
         action()
+
+    else:
+        raise typer.Exit(f"Unknown action: {action}")
 
 
 if __name__ == "__main__":
