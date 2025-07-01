@@ -11,28 +11,34 @@ The system works by treating your Git repository as a source of truth for *metad
 The workflow is as follows:
 
 ```mermaid
+---
+config:
+  layout: elk
+  theme: mc
+  look: classic
+---
 flowchart TD
-    subgraph "Local Machine / CI Runner"
-        A[Developer] --> B{datamanager CLI};
-        B --> C[Git Repo];
-        C --> D[manifest.json];
-        C --> E[.diff files];
-    end
+ subgraph subGraph0["Local Machine / CI Runner"]
+        B{"datamanager CLI"}
+        A["Developer"]
+        C["Git Repo"]
+        D["manifest.json"]
+        E[".diff files"]
+  end
+ subgraph Cloud["Cloud"]
+        F["Remote Git Repo"]
+        G["Cloudflare R2 Bucket"]
+  end
+    A --> B
+    B --> C
+    C --> D & E
+    B -- "Uploads new .sqlite db" --> G
+    B -- Calculates hash & diff --> C
+    C -- git push --> F
 
-    subgraph "Cloud"
-        F[Remote Git Repo <br/>(GitHub, GitLab)];
-        G[Cloudflare R2 Bucket];
-    end
-
-    B -- "1. Uploads new .sqlite file" --> G;
-    B -- "2. Calculates hash & diff" --> C;
-    C -- "3. git push" --> F;
-
-    style G fill:#f9f,stroke:#333,stroke-width:2px
-    style F fill:#ccf,stroke:#333,stroke-width:2px
 ```
 
-A `manifest.json` file in the Git repo acts as a "pointer" system, mapping dataset versions to specific, immutable objects in R2, complete with integrity hashes.
+The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dataset versions to specific, immutable objects in R2, complete with integrity hashes.
 
 ## Features
 
@@ -93,10 +99,10 @@ A `manifest.json` file in the Git repo acts as a "pointer" system, mapping datas
     Run the `verify` command to ensure your credentials and bucket access are correct.
 
     ```bash
-    datamanager verify
+    uv run datamanager verify
     ```
 
-    ![Verify Output](assets/verification.png)
+   ![Verify Output](https://github.com/user-attachments/assets/f208e8a1-b70a-4cf7-a9ad-2e3a96a83265)
 
 ## 🚀 Usage
 
@@ -110,7 +116,7 @@ uv run datamanager
 
 This will launch a menu where you can choose your desired action.
 
-![alt text](assets/tui.png)
+![TUI](https://github.com/user-attachments/assets/425572b3-9185-4889-ace7-ea882dcd9af5)
 
 ### Command-Line Interface (CLI)
 
@@ -122,8 +128,6 @@ Checks R2 credentials and bucket access.
 uv run datamanager verify
 ```
 
-![alt text](assets/verification.png)
-
 #### `list-datasets`
 
 Lists all datasets currently tracked in `manifest.json`.
@@ -133,7 +137,7 @@ uv run datamanager list-datasets
 
 ```
 
-![alt text](assets/list-datasets.png)
+![list_datasets](https://github.com/user-attachments/assets/c641a330-99a4-463a-a877-6698996edb27)
 
 #### `create`
 
@@ -143,7 +147,7 @@ Adds a new dataset to be tracked.
 uv run datamanager create <dataset-name.sqlite> <path/to/local/file.sqlite>
 ```
 
-![alt text](assets/creating.png)
+![adding database](https://github.com/user-attachments/assets/f43b991a-1ece-401b-956d-66c801705601)
 
 #### `update`
 
@@ -153,7 +157,7 @@ Creates a new version of an existing dataset.
 uv run datamanager update <dataset-name.sqlite> <path/to/new/file.sqlite>
 ```
 
-![alt text](assets/interactive_update.png)
+![updating databases](https://github.com/user-attachments/assets/330a667d-74f8-41d9-b26d-3c7de53dd873)
 
 #### `pull`
 
@@ -170,7 +174,7 @@ uv run datamanager pull user-profiles.sqlite --version v2
 uv run datamanager pull user-profiles.sqlite -o ./downloads/users_v2.sqlite
 ```
 
-![alt text](assets/pulling.png)
+![pulling](https://github.com/user-attachments/assets/275aae67-7bf3-47c2-90a4-db41cdc7e232)
 
 ## 🧑‍💻 Development and Testing
 
