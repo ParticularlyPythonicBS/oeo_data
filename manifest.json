@@ -26,5 +26,19 @@
         "commit": "b7292df"
       }
     ]
+  },
+  {
+    "fileName": "test.db",
+    "latestVersion": "v1",
+    "history": [
+      {
+        "version": "v1",
+        "timestamp": "2025-07-01T01:27:43.953637Z",
+        "sha256": "110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84",
+        "r2_object_key": "test/v1-110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84.sqlite",
+        "diffFromPrevious": null,
+        "commit": "be6a187"
+      }
+    ]
   }
 ]
