@@ -27,6 +27,7 @@ class Settings:
     access_key: str = _need("R2_ACCESS_KEY_ID")
     secret_key: str = _need("R2_SECRET_ACCESS_KEY")
     bucket: str = _need("R2_BUCKET")
+    staging_bucket: str = _need("R2_STAGING_BUCKET")
     manifest_file: str = "manifest.json"
     max_diff_lines: int = 500
 

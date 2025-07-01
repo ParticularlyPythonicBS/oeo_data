@@ -215,3 +215,20 @@ def verify_r2_access() -> tuple[bool, str]:
             f"An unexpected error occurred. This could be a network issue or an "
             f"incorrect R2 endpoint URL. Error: {e}",
         )
+
+
+def upload_to_staging(client: S3Client, file_path: Path, object_key: str) -> None:
+    """Uploads a file to the STAGING R2 bucket with a progress bar."""
+    file_size = file_path.stat().st_size
+    with Progress() as progress:
+        task = progress.add_task(
+            f"[yellow]Uploading to staging: {file_path.name}...", total=file_size
+        )
+        client.upload_file(
+            str(file_path),
+            settings.staging_bucket,
+            object_key,
+            Callback=lambda bytes_transferred: progress.update(
+                task, advance=bytes_transferred
+            ),
+        )

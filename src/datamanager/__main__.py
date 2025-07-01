@@ -421,6 +421,94 @@ def _update_interactive(ctx: typer.Context) -> None:
         pass
 
 
+@app.command()
+def prepare(
+    name: str = typer.Argument(..., help="The logical name of the dataset."),
+    file: Path = typer.Argument(..., help="Path to the .sqlite file.", exists=True),
+) -> None:
+    """
+    Prepares a dataset for release: uploads to staging and updates the manifest.
+    This is the first step in the CI/CD-driven workflow.
+    """
+    console.print(f"🚀 Preparing update for [cyan]{name}[/]...")
+
+    # 1. Hash file and connect to R2
+    new_hash = core.hash_file(file)
+    client = core.get_r2_client()
+
+    # 2. Upload to staging bucket with a content-addressed key
+    staging_key = f"staging-uploads/{new_hash}.sqlite"
+    core.upload_to_staging(client, file, staging_key)
+
+    # 3. Determine if this is a create or update, and prepare manifest entry
+    dataset = manifest.get_dataset(name)
+    if dataset:
+        # --- This is an UPDATE ---
+        latest_version = dataset["history"][0]
+        if new_hash == latest_version["sha256"]:
+            console.print("✅ No changes detected. Manifest is already up to date.")
+            return
+
+        prev_version_num = int(latest_version["version"].lstrip("v"))
+        new_version = f"v{prev_version_num + 1}"
+        r2_dir = Path(latest_version["r2_object_key"]).parent
+        final_r2_key = f"{r2_dir}/{new_version}-{new_hash}.sqlite"
+
+        console.print(
+            f"Change detected! Preparing new version: [magenta]{new_version}[/]"
+        )
+
+        new_entry = {
+            "version": new_version,
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "sha256": new_hash,
+            "r2_object_key": final_r2_key,  # The final destination
+            "staging_key": staging_key,  # The temporary source
+            "diffFromPrevious": None,  # Diff generation can be added back if needed
+            "commit": "pending-merge",  # Placeholder
+        }
+        manifest.add_history_entry(name, new_entry)
+
+    else:
+        # --- This is a CREATE ---
+        new_version = "v1"
+        r2_dir = Path(Path(name).stem)
+        final_r2_key = f"{r2_dir}/{new_version}-{new_hash}.sqlite"
+        console.print(
+            f"New dataset detected! Preparing version: [magenta]{new_version}[/]"
+        )
+
+        new_dataset_obj = {
+            "fileName": name,
+            "latestVersion": new_version,
+            "history": [
+                {
+                    "version": new_version,
+                    "timestamp": datetime.now(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    "sha256": new_hash,
+                    "r2_object_key": final_r2_key,
+                    "staging_key": staging_key,
+                    "diffFromPrevious": None,
+                    "commit": "pending-merge",
+                }
+            ],
+        }
+        manifest.add_new_dataset(new_dataset_obj)
+
+    console.print(
+        f"\n[bold green]✅ Preparation complete![/] Manifest file '{settings.manifest_file}' has been updated."
+    )
+    console.print(
+        "\nNext steps:\n"
+        "  1. [cyan]git add .[/]\n"
+        '  2. [cyan]git commit -m "feat: Prepare update for {name}"[/]\n'
+        "  3. [cyan]git push[/]\n"
+        "  4. Open a Pull Request to merge your changes into the main branch."
+    )
+
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
     """
