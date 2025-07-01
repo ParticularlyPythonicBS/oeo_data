@@ -27,39 +27,46 @@ with open(MANIFEST_FILE, "r") as f:
 
 needs_update = False
 for dataset in manifest_data:
-    latest_entry = dataset["history"][0]
-    if "staging_key" in latest_entry and latest_entry["staging_key"]:
-        needs_update = True
-        staging_key = latest_entry.pop("staging_key")  # Remove the key
-        final_key = latest_entry["r2_object_key"]
-        commit_hash = (
-            subprocess.check_output(
-                ["git", "log", "-1", "--pretty=%h", "--", MANIFEST_FILE]
+    # Check the entire history for a staged entry, not just the latest
+    for i, entry in enumerate(dataset["history"]):
+        if "staging_key" in entry and entry["staging_key"]:
+            needs_update = True
+            staging_key = entry.pop("staging_key")  # Remove the key
+            final_key = entry["r2_object_key"]
+            commit_hash = (
+                subprocess.check_output(
+                    ["git", "log", "-1", "--pretty=%h", "--", MANIFEST_FILE]
+                )
+                .decode()
+                .strip()
             )
-            .decode()
-            .strip()
-        )
-        latest_entry["commit"] = commit_hash
+            entry["commit"] = commit_hash
+            dataset["history"][i] = entry  # Update the entry in the list
 
-        print(
-            f"Publishing: {dataset['fileName']} v{latest_entry['version'].lstrip('v')}"
-        )
-        try:
-            copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
-            client.copy_object(
-                CopySource=copy_source, Bucket=PROD_BUCKET, Key=final_key
-            )
-            print("  ✅ Server-side copy successful.")
-            client.delete_object(Bucket=STAGING_BUCKET, Key=staging_key)
-            print("  ✅ Staging object deleted.")
-        except ClientError as e:
-            print(f"  ❌ ERROR: Could not process object. Reason: {e}")
-            exit(1)
+            print(f"Publishing: {dataset['fileName']} v{entry['version']}")
+            try:
+                copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
+                client.copy_object(
+                    CopySource=copy_source, Bucket=PROD_BUCKET, Key=final_key
+                )
+                print("  ✅ Server-side copy successful.")
+                client.delete_object(Bucket=STAGING_BUCKET, Key=staging_key)
+                print("  ✅ Staging object deleted.")
+                # Break the inner loop after processing one entry
+                break
+            except ClientError as e:
+                print(f"  ❌ ERROR: Could not process object. Reason: {e}")
+                exit(1)
+
+    # Break the outer loop as well to ensure only one dataset is processed per run
+    if needs_update:
+        break
 
 if needs_update:
     print("\nFinalizing manifest file with new commit hash...")
     with open(MANIFEST_FILE, "w") as f:
-        json.dump(manifest_data, f, indent=2)
+        json.dump(manifest_data, f, indent=2, ensure_ascii=False)
+        f.write("\n")  # Add a trailing newline for linters
 
     print("Committing and pushing finalized manifest...")
     subprocess.run(["git", "config", "user.name", "github-actions[bot]"])
