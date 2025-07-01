@@ -1,8 +1,16 @@
 [
   {
     "fileName": "utopia_test.sqlite",
+    "latestVersion": "v1",
     "history": [
-      {}
+      {
+        "version": "v1",
+        "timestamp": "2025-07-01T01:03:03.362970Z",
+        "sha256": "287098297ea1c36c6b77780b42cdc33f57bdd3b1a05eca2cb8ae12e06716fe52",
+        "r2_object_key": "utopia_test/v1-287098297ea1c36c6b77780b42cdc33f57bdd3b1a05eca2cb8ae12e06716fe52.sqlite",
+        "diffFromPrevious": null,
+        "commit": "cc99320"
+      }
     ]
   }
 ]
