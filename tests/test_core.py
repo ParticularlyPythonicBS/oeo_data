@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from pytest_mock import MockerFixture
 
-from botocore.exceptions import ClientError, _ClientErrorResponseTypeDef
+from botocore.exceptions import ClientError
 
 from datamanager import core
 from datamanager.config import config
@@ -79,10 +79,8 @@ def test_verify_r2_access_no_such_bucket(mocker: MockerFixture) -> None:
     """Test R2 verification failure due to a non-existent bucket."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response: _ClientErrorResponseTypeDef = {
-        "Error": {"Code": "404", "Message": "Not Found"}
-    }
-    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+    error_response = {"Error": {"Code": "404", "Message": "Not Found"}}
+    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")  # type: ignore[arg-type]
 
     success, message = core.verify_r2_access()
 
@@ -94,10 +92,8 @@ def test_verify_r2_access_access_denied(mocker: MockerFixture) -> None:
     """Test R2 verification failure due to permissions."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response: _ClientErrorResponseTypeDef = {
-        "Error": {"Code": "403", "Message": "Access Denied"}
-    }
-    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+    error_response = {"Error": {"Code": "403", "Message": "Access Denied"}}
+    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")  # type: ignore[arg-type]
 
     success, message = core.verify_r2_access()
 
