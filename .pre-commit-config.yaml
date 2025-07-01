@@ -31,6 +31,7 @@ repos:
       - id: ruff-format
         name: ruff-format (formatter)
 
+    # Type checking with MyPy
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.16.1
     hooks:
@@ -38,6 +39,6 @@ repos:
 
     # No committing secrets
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.2
+    rev: v8.27.2
     hooks:
       - id: gitleaks
