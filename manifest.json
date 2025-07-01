@@ -96,9 +96,8 @@
         "timestamp": "2025-07-01T23:31:59.727048Z",
         "sha256": "c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9",
         "r2_object_key": "ci_test_data/v1-c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9.sqlite",
-        "staging_key": "staging-uploads/c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9.sqlite",
         "diffFromPrevious": null,
-        "commit": "pending-merge"
+        "commit": "5191f3c"
       }
     ]
   }
