@@ -10,14 +10,24 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from typing import Callable, Optional
+from typing import Callable, Optional, cast, Any
 
 from datamanager.config import settings
 from datamanager import core, manifest
 
+
+# Common options for all commands
+COMMON_OPTIONS = dict(
+    no_prompt=typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Run non-interactively: auto-accept all prompts and use defaults.",
+    )
+)
+
+
 # Git helpers
-
-
 def _stage_all() -> None:
     """Stage every working-tree change."""
     subprocess.run(["git", "add", "-A"], check=True)
@@ -37,6 +47,22 @@ def _build_detached_commit(message: str) -> str:
     return sha
 
 
+# Prompt helpers
+def _ask_text(ctx: typer.Context, prompt: str, default: str) -> str:
+    if ctx.obj.get("no_prompt"):  # ← global flag
+        console.print(f"[cyan]--yes[/] given – using default message: '{default}'")
+        return default
+    result: Optional[str] = questionary.text(prompt, default=default).ask()
+    return cast(str, result)
+
+
+def _ask_confirm(ctx: typer.Context, prompt: str, default: bool = False) -> bool:
+    if ctx.obj.get("no_prompt"):
+        return True
+    result: Optional[bool] = questionary.confirm(prompt, default=default).ask()
+    return bool(result)  # Cast to bool to avoid NoneType issues
+
+
 def _rel(iso: str) -> str:
     dt = isoparse(iso)
     delta = datetime.now(timezone.utc) - dt
@@ -54,7 +80,7 @@ console = Console()
 
 
 @app.command()
-def verify() -> None:
+def verify(ctx: typer.Context) -> None:
     """Verifies the Cloudflare R2 credentials and bucket access."""
     console.print("🔍 Verifying Cloudflare R2 configuration...")
     with console.status("[bold yellow]Connecting to R2...[/]"):
@@ -68,7 +94,7 @@ def verify() -> None:
 
 
 @app.command()
-def list_datasets() -> None:
+def list_datasets(ctx: typer.Context) -> None:
     """Lists all datasets tracked in the manifest."""
     data = manifest.read_manifest()
     table = Table("Dataset Name", "Latest Version", "Last Updated", "SHA256")
@@ -84,7 +110,7 @@ def list_datasets() -> None:
     console.print(table)
 
 
-def _run_update_logic(name: str, file: Path) -> None:
+def _run_update_logic(ctx: typer.Context, name: str, file: Path) -> None:
     console.print(f"🚀  Updating [cyan]{name}[/]…")
 
     # Step 1. Pre-flight & diff
@@ -121,10 +147,7 @@ def _run_update_logic(name: str, file: Path) -> None:
         console.print("📝  Diff too large – omitted from Git.")
 
     # Step 2. Commit message
-    msg = questionary.text(
-        "Enter commit message:",
-        default=f"Update {name} → {new_ver}",
-    ).ask()
+    msg = _ask_text(ctx, "Enter commit message:", f"Update {name} → {new_ver}")
     if not msg:
         console.print("[red]Commit cancelled.[/]")
         raise typer.Exit()
@@ -166,11 +189,14 @@ def _run_update_logic(name: str, file: Path) -> None:
 
 @app.command()
 def update(
+    ctx: typer.Context,
     name: str = typer.Argument(..., help="The logical name of the dataset."),
     file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
+    no_prompt: bool = COMMON_OPTIONS["no_prompt"],
 ) -> None:
     """Updates a dataset with a new version, committing and pushing the result."""
-    _run_update_logic(name, file)
+    ctx.obj["no_prompt"] = no_prompt or ctx.obj.get("no_prompt")
+    _run_update_logic(ctx, name, file)
 
 
 @app.command()
@@ -228,10 +254,14 @@ def pull(
 
 @app.command()
 def create(
+    ctx: typer.Context,
     name: str = typer.Argument(...),
     file: Path = typer.Argument(..., exists=True),
+    no_prompt: bool = COMMON_OPTIONS["no_prompt"],
 ) -> None:
     """Add a brand-new dataset (v1) to the manifest."""
+    ctx.obj["no_prompt"] = no_prompt or ctx.obj.get("no_prompt")
+
     console.print(f"🚀  Creating dataset [cyan]{name}[/]…")
     if manifest.get_dataset(name):
         console.print(f"[red]Dataset '{name}' already exists.[/]")
@@ -241,9 +271,8 @@ def create(
     r2_dir = Path(name).stem
     r2_key = f"{r2_dir}/v1-{new_hash}.sqlite"
 
-    msg = questionary.text(
-        "Commit message:", default=f"feat: add dataset '{name}'"
-    ).ask()
+    msg = _ask_text(ctx, "Commit message:", f"feat: add dataset '{name}'")
+
     if not msg:
         console.print("[red]Commit cancelled.[/]")
         raise typer.Exit()
@@ -288,12 +317,13 @@ def create(
         raise typer.Exit(1)
 
 
-def _update_interactive() -> None:
+def _update_interactive(ctx: typer.Context) -> None:
     """Guides the user through updating a dataset interactively."""
+
     console.print("\n[bold]Interactive Dataset Update[/]")
 
     # Step 1: Select the dataset
-    all_datasets = manifest.read_manifest()
+    all_datasets: list[dict[str, Any]] = manifest.read_manifest()
     if not all_datasets:
         console.print("[yellow]No datasets found in the manifest to update.[/]")
         return
@@ -322,7 +352,7 @@ def _update_interactive() -> None:
     console.print(
         f"\nYou are about to update [cyan]{selected_name}[/] with the file [green]{selected_file}[/]."
     )
-    proceed = questionary.confirm("Do you want to continue?", default=False).ask()
+    proceed = _ask_confirm(ctx, "Do you want to continue?", default=False)
 
     if not proceed:
         console.print("Update cancelled.")
@@ -330,7 +360,7 @@ def _update_interactive() -> None:
 
     # Step 4: Execute the update logic
     try:
-        _run_update_logic(name=selected_name, file=Path(selected_file))
+        _run_update_logic(ctx, name=selected_name, file=Path(selected_file))
     except typer.Exit:
         # Catch the Exit exception to prevent it from crashing the TUI loop
         # The error messages are already printed by _run_update_logic
@@ -338,14 +368,26 @@ def _update_interactive() -> None:
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
-    """Entrypoint that shows a TUI if no command is given."""
-    if ctx.invoked_subcommand is not None:
+def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
+    """
+    Entrypoint – when no sub-command is given we show a simple TUI unless
+    --yes is supplied (non-interactive mode).
+    """
+    ctx.ensure_object(dict)
+    ctx.obj["no_prompt"] = no_prompt
+
+    # If a sub-command was provided just return – ctx.obj is now populated.
+    if ctx.invoked_subcommand:
         return
+
+    if no_prompt:
+        console.print("[red]--yes supplied but no sub-command given; exiting.[/]")
+        raise typer.Exit(code=1)
 
     console.print("[bold yellow]Welcome to the Data Manager TUI![/]")
 
-    actions: dict[str, Callable[[], None] | str] = {
+    actions: dict[str, Callable[[typer.Context], None] | str] = {
+        "Verify R2 configuration": verify,
         "List all datasets": list_datasets,
         "Update an existing dataset": _update_interactive,
         "Exit": "exit",
@@ -362,7 +404,7 @@ def main(ctx: typer.Context) -> None:
     action = actions[choice]
     if callable(action):
         # Call the function directly
-        action()
+        action(ctx)
 
     else:
         raise NotImplementedError(f"Action '{choice}' is not implemented yet.")

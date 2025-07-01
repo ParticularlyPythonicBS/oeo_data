@@ -29,15 +29,15 @@
   },
   {
     "fileName": "test_database.sqlite",
-    "latestVersion": "v7",
+    "latestVersion": "v8",
     "history": [
       {
-        "version": "v7",
-        "timestamp": "2025-07-01T20:32:02.732875Z",
-        "sha256": "2f4d013b4899f1ef8bc84aac77c2b915fa65804b8ab41f938140b2abfcf400a0",
-        "r2_object_key": "test_database/v7-2f4d013b4899f1ef8bc84aac77c2b915fa65804b8ab41f938140b2abfcf400a0.sqlite",
-        "diffFromPrevious": "diffs/test_database.sqlite/diff-v6-to-v7.diff",
-        "commit": "031443a"
+        "version": "v8",
+        "timestamp": "2025-07-01T21:17:52.143687Z",
+        "sha256": "c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9",
+        "r2_object_key": "test_database/v8-c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9.sqlite",
+        "diffFromPrevious": "diffs/test_database.sqlite/diff-v7-to-v8.diff",
+        "commit": "361221b"
       },
       {
         "version": "v4",
