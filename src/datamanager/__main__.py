@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from typing import Callable
+from typing import Callable, Optional
 
 from datamanager.config import config
 from datamanager import core, manifest
@@ -160,6 +160,142 @@ def update(
         raise typer.Exit(1)
 
     console.print("\n[bold green]🎉 Update complete and pushed successfully![/]")
+
+
+@app.command()  # type: ignore[misc]
+def pull(
+    name: str = typer.Argument(..., help="The logical name of the dataset to pull."),
+    version: str = typer.Option(
+        "latest",
+        "--version",
+        "-v",
+        help="Version to pull (e.g., 'v1'). Defaults to latest.",
+    ),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output path for the file. Defaults to the dataset name in the current directory.",
+    ),
+):
+    """Pulls a specific version of a dataset from R2 and verifies its integrity."""
+    console.print(f"🔎 Locating version '{version}' for dataset '{name}'...")
+    version_entry = manifest.get_version_entry(name, version)
+
+    if not version_entry:
+        console.print(
+            f"[bold red]Error:[/] Could not find version '{version}' for dataset '{name}'."
+        )
+        raise typer.Exit(1)
+
+    # Determine final output path
+    if output is None:
+        final_path = Path(name)
+    elif output.is_dir():
+        final_path = output / name
+    else:
+        final_path = output
+
+    console.print(
+        f"Pulling version [magenta]{version_entry['version']}[/] (commit: {version_entry['commit']}) to [cyan]{final_path}[/]"
+    )
+
+    success = core.pull_and_verify(
+        version_entry["r2_object_key"], version_entry["sha256"], final_path
+    )
+
+    if success:
+        console.print(
+            f"\n[bold green]✅ Success![/] File saved to [cyan]{final_path}[/]"
+        )
+    else:
+        console.print(
+            "\n[bold red]❌ Pull failed.[/] Please check the error messages above."
+        )
+        raise typer.Exit(1)
+
+
+@app.command()  # type: ignore[misc]
+def create(
+    name: str = typer.Argument(..., help="The logical name for the new dataset."),
+    file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
+):
+    """Adds and uploads a completely new dataset to the manifest."""
+    console.print(f"🚀 Creating new dataset: [bold cyan]{name}[/]...")
+
+    # 1. Pre-flight checks
+    if manifest.get_dataset(name):
+        console.print(
+            f"[bold red]Error:[/] Dataset '{name}' already exists. "
+            "Use 'datamanager update' to create a new version."
+        )
+        raise typer.Exit(1)
+
+    # 2. Local Preparation
+    new_hash = core.hash_file(file)
+    version = "v1"
+    r2_dir = Path(name).stem  # Use the filename without extension as a directory
+    new_r2_key = f"{r2_dir}/{version}-{new_hash}.sqlite"
+
+    # 3. Prompt and Commit Locally
+    commit_message = questionary.text(
+        "Enter commit message:", default=f"feat: Add new dataset '{name}'"
+    ).ask()
+
+    if not commit_message:
+        console.print("[bold red]Commit cancelled. Aborting creation.[/]")
+        raise typer.Exit()
+
+    # Create a temporary dataset object, add it to manifest, and commit
+    temp_dataset_obj = {"fileName": name, "history": [{}]}
+    manifest.add_new_dataset(temp_dataset_obj)
+    subprocess.run(["git", "add", config.MANIFEST_FILE])
+    subprocess.run(["git", "commit", "-m", commit_message], check=True)
+    commit_hash = (
+        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+        .decode()
+        .strip()
+    )
+
+    # 4. Transactional Upload and Push
+    try:
+        # Create the final, complete dataset object with the real commit hash
+        final_dataset_obj = {
+            "fileName": name,
+            "latestVersion": version,
+            "history": [
+                {
+                    "version": version,
+                    "timestamp": datetime.now(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    "sha256": new_hash,
+                    "r2_object_key": new_r2_key,
+                    "diffFromPrevious": None,
+                    "commit": commit_hash,
+                }
+            ],
+        }
+        # Amend the previous commit with the final manifest content
+        manifest.update_dataset(name, final_dataset_obj)
+        subprocess.run(["git", "add", config.MANIFEST_FILE])
+        subprocess.run(["git", "commit", "--amend", "--no-edit"], check=True)
+
+        console.print(f"Uploading [green]{file.name}[/] to R2...")
+        core.upload_to_r2(core.get_r2_client(), file, new_r2_key)
+
+        console.print("Pushing changes to remote repository...")
+        subprocess.run(["git", "push"], check=True, capture_output=True)
+
+    except (subprocess.CalledProcessError, Exception):
+        console.print("\n[bold red]An error occurred during finalization![/]")
+        console.print("\n[bold yellow]Rolling back changes...[/]")
+        core.delete_from_r2(core.get_r2_client(), new_r2_key)
+        subprocess.run(["git", "reset", "--hard", "HEAD~1"])
+        console.print("\n[bold yellow]Rollback complete.[/]")
+        raise typer.Exit(1)
+
+    console.print("\n[bold green]🎉 New dataset created and pushed successfully![/]")
 
 
 @app.callback(invoke_without_command=True)  # type: ignore[misc]

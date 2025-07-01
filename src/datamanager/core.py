@@ -3,6 +3,7 @@ import hashlib
 import subprocess
 import tempfile
 from pathlib import Path
+import os
 
 from botocore.exceptions import ClientError
 
@@ -56,8 +57,54 @@ def upload_to_r2(client, file_path: Path, object_key: str):
 
 
 def download_from_r2(client, object_key: str, download_path: Path):
-    """Downloads a file from R2."""
-    client.download_file(config.R2_BUCKET, object_key, str(download_path))
+    """Downloads a file from R2 with a progress bar."""
+    try:
+        file_size = client.head_object(Bucket=config.R2_BUCKET, Key=object_key)[
+            "ContentLength"
+        ]
+        with Progress() as progress:
+            task = progress.add_task(
+                f"[cyan]Downloading {download_path.name}...", total=file_size
+            )
+            client.download_file(
+                config.R2_BUCKET,
+                object_key,
+                str(download_path),
+                Callback=lambda bytes_transferred: progress.update(
+                    task, advance=bytes_transferred
+                ),
+            )
+    except ClientError as e:
+        # Handle cases where the object might not exist
+        console.print(f"[bold red]Error downloading from R2: {e}[/]")
+        raise
+
+
+def pull_and_verify(object_key: str, expected_hash: str, output_path: Path) -> bool:
+    """
+    Downloads a file from R2, verifies its hash, and cleans up on failure.
+
+    Returns:
+        True if download and verification succeed, False otherwise.
+    """
+    client = get_r2_client()
+    try:
+        download_from_r2(client, object_key, output_path)
+    except Exception:
+        return False  # Error message is printed inside download_from_r2
+
+    console.print("Verifying file integrity...")
+    downloaded_hash = hash_file(output_path)
+
+    if downloaded_hash == expected_hash:
+        return True
+    else:
+        console.print("[bold red]Integrity check FAILED![/]")
+        console.print(f"  Expected SHA256: {expected_hash}")
+        console.print(f"  Actual SHA256:   {downloaded_hash}")
+        console.print(f"Deleting corrupted file: [yellow]{output_path}[/]")
+        os.remove(output_path)
+        return False
 
 
 def generate_sql_diff(old_file: Path, new_file: Path) -> str:
