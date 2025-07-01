@@ -101,5 +101,20 @@
         "commit": "pending-merge"
       }
     ]
+  },
+  {
+    "fileName": "ci_test_data_new.sqlite",
+    "latestVersion": "v1",
+    "history": [
+      {
+        "version": "v1",
+        "timestamp": "2025-07-01T23:23:42.912726Z",
+        "sha256": "c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9",
+        "r2_object_key": "ci_test_data_new/v1-c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9.sqlite",
+        "staging_key": "staging-uploads/c27a67ce47c2988d2c18010c1e2f140c3e6c0b6ce09da05a80d643fb58f9abd9.sqlite",
+        "diffFromPrevious": null,
+        "commit": "pending-merge"
+      }
+    ]
   }
 ]

@@ -2,7 +2,7 @@ name: Publish Dataset to R2
 
 on:
   push:
-    branches: ["feature/ci-driven-publishing", "main", "master"]
+    branches: ["develop"]
 
 permissions:
   id-token: write
