@@ -80,7 +80,7 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
     The tool is configured using a `.env` file. Create one by copying the example:
 
     ```bash
-    cp .env.example .env
+    cp env.example .env
     ```
 
     Now, edit the `.env` file with your Cloudflare R2 credentials. **This file should be in your `.gitignore` and never committed to the repository.**
