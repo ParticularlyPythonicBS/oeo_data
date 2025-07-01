@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 from botocore.exceptions import ClientError
 
 from datamanager import core
-from datamanager.config import config
+from datamanager.config import settings
 
 
 def test_hash_file(tmp_path: Path) -> None:
@@ -59,7 +59,7 @@ def test_r2_interactions(mocker: MockerFixture, tmp_path: Path) -> None:
     # Test delete
     core.delete_from_r2(mock_client, "my/object/key")
     mock_client.delete_object.assert_called_once_with(
-        Bucket=config.R2_BUCKET, Key="my/object/key"
+        Bucket=settings.bucket, Key="my/object/key"
     )
 
 

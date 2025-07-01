@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from rich.console import Console
 
-import datamanager.config as config
+from datamanager.config import settings
 
 __all__ = [
     "read_manifest",
@@ -25,7 +25,7 @@ __all__ = [
 
 # Initialize console for any feedback
 console = Console()
-MANIFEST_PATH = Path(config.MANIFEST_FILE)
+MANIFEST_PATH = Path(settings.manifest_file)
 
 
 def read_manifest() -> list[dict[str, Any]]:

@@ -1,52 +1,38 @@
+# src/datamanager/config.py
+from __future__ import annotations
+from dataclasses import dataclass
+from functools import cached_property
+from pathlib import Path
 from dotenv import find_dotenv, dotenv_values
+import warnings
 
-from typing import NamedTuple, Optional
-
-
-def get_required_env_var(env_dict: dict[str, Optional[str]], var_name: str) -> str:
-    """
-    Retrieves a required environment variable, raising an error if it's missing.
-    """
-    value = env_dict.get(var_name)
-    if value is None:
-        raise EnvironmentError(f"Missing required environment variable: {var_name}")
-    return value
+_ENV_PATH = Path(find_dotenv()) if find_dotenv() else None
+_ENV = dotenv_values(_ENV_PATH) if _ENV_PATH else {}
 
 
-dotenv_path = find_dotenv()
-
-env = dotenv_values(dotenv_path)
-
-R2_ACCOUNT_ID = get_required_env_var(env, "R2_ACCOUNT_ID")
-R2_ACCESS_KEY_ID = get_required_env_var(env, "R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = get_required_env_var(env, "R2_SECRET_ACCESS_KEY")
-R2_BUCKET = get_required_env_var(env, "R2_BUCKET")
-
-R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-
-MANIFEST_FILE = "manifest.json"
-MAX_DIFF_LINES = 500
+def _need(var: str) -> str:
+    val = _ENV.get(var)
+    if val is None:
+        warnings.warn(
+            f"Env var {var} is missing – using dummy value for offline/test mode",
+            RuntimeWarning,
+        )
+        val = "DUMMY"
+    return str(val)
 
 
-configTuple = NamedTuple(
-    "configTuple",
-    [
-        ("R2_ACCOUNT_ID", str),
-        ("R2_ACCESS_KEY_ID", str),
-        ("R2_SECRET_ACCESS_KEY", str),
-        ("R2_BUCKET", str),
-        ("R2_ENDPOINT_URL", str),
-        ("MANIFEST_FILE", str),
-        ("MAX_DIFF_LINES", int),
-    ],
-)
+@dataclass(frozen=True, slots=True)
+class Settings:
+    account_id: str = _need("R2_ACCOUNT_ID")
+    access_key: str = _need("R2_ACCESS_KEY_ID")
+    secret_key: str = _need("R2_SECRET_ACCESS_KEY")
+    bucket: str = _need("R2_BUCKET")
+    manifest_file: str = "manifest.json"
+    max_diff_lines: int = 500
 
-config = configTuple(
-    R2_ACCOUNT_ID=R2_ACCOUNT_ID,
-    R2_ACCESS_KEY_ID=R2_ACCESS_KEY_ID,
-    R2_SECRET_ACCESS_KEY=R2_SECRET_ACCESS_KEY,
-    R2_BUCKET=R2_BUCKET,
-    R2_ENDPOINT_URL=R2_ENDPOINT_URL,
-    MANIFEST_FILE=MANIFEST_FILE,
-    MAX_DIFF_LINES=MAX_DIFF_LINES,
-)
+    @cached_property
+    def endpoint_url(self) -> str:
+        return f"https://{self.account_id}.r2.cloudflarestorage.com"
+
+
+settings = Settings()

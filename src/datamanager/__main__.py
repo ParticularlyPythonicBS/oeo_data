@@ -11,7 +11,7 @@ from rich.table import Table
 
 from typing import Callable, Optional
 
-from datamanager.config import config
+from datamanager.config import settings
 from datamanager import core, manifest
 
 # Initialize Typer app and Rich console
@@ -84,7 +84,7 @@ def _run_update_logic(name: str, file: Path) -> None:
         diff_content = core.generate_sql_diff(old_file_path, file)
 
     diff_git_path = None
-    if diff_content.count("\n") <= config.MAX_DIFF_LINES:
+    if diff_content.count("\n") <= settings.max_diff_lines:
         diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
         diff_git_path = Path("diffs") / name / diff_filename
         console.print(f"📝 Generating diff file: [green]{diff_git_path}[/]")
@@ -96,7 +96,7 @@ def _run_update_logic(name: str, file: Path) -> None:
         console.print("📝 Diff is too large, will not be stored in Git.")
 
     manifest.add_history_entry(name, {})  # Add a temporary placeholder
-    subprocess.run(["git", "add", config.MANIFEST_FILE])
+    subprocess.run(["git", "add", settings.manifest_file])
 
     # --- 2. Prompt and Commit Locally ---
     commit_message = questionary.text(
@@ -129,7 +129,7 @@ def _run_update_logic(name: str, file: Path) -> None:
             "commit": commit_hash,
         }
         manifest.update_latest_history_entry(name, new_entry)
-        subprocess.run(["git", "add", config.MANIFEST_FILE])
+        subprocess.run(["git", "add", settings.manifest_file])
         subprocess.run(
             ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
         )
@@ -249,7 +249,7 @@ def create(
     # Create a temporary dataset object, add it to manifest, and commit
     temp_dataset_obj = {"fileName": name, "history": [{}]}
     manifest.add_new_dataset(temp_dataset_obj)
-    subprocess.run(["git", "add", config.MANIFEST_FILE])
+    subprocess.run(["git", "add", settings.manifest_file])
     subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
     commit_hash = (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
@@ -278,7 +278,7 @@ def create(
         }
         # Amend the previous commit with the final manifest content
         manifest.update_dataset(name, final_dataset_obj)
-        subprocess.run(["git", "add", config.MANIFEST_FILE])
+        subprocess.run(["git", "add", settings.manifest_file])
         subprocess.run(
             ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
         )

@@ -13,7 +13,7 @@ from rich.console import Console
 
 from types_boto3_s3.client import S3Client
 
-from datamanager.config import config
+from datamanager.config import settings
 
 
 console = Console()
@@ -23,9 +23,9 @@ def get_r2_client() -> S3Client:
     """Initializes and returns a boto3 S3 client for R2."""
     return boto3.client(
         "s3",
-        endpoint_url=config.R2_ENDPOINT_URL,
-        aws_access_key_id=config.R2_ACCESS_KEY_ID,
-        aws_secret_access_key=config.R2_SECRET_ACCESS_KEY,
+        endpoint_url=settings.endpoint_url,
+        aws_access_key_id=settings.access_key,
+        aws_secret_access_key=settings.secret_key,
         region_name="auto",
     )
 
@@ -48,7 +48,7 @@ def upload_to_r2(client: S3Client, file_path: Path, object_key: str) -> None:
         )
         client.upload_file(
             str(file_path),
-            config.R2_BUCKET,
+            settings.bucket,
             object_key,
             Callback=lambda bytes_transferred: progress.update(
                 task, advance=bytes_transferred
@@ -59,7 +59,7 @@ def upload_to_r2(client: S3Client, file_path: Path, object_key: str) -> None:
 def download_from_r2(client: S3Client, object_key: str, download_path: Path) -> None:
     """Downloads a file from R2 with a progress bar."""
     try:
-        file_size = client.head_object(Bucket=config.R2_BUCKET, Key=object_key)[
+        file_size = client.head_object(Bucket=settings.bucket, Key=object_key)[
             "ContentLength"
         ]
         with Progress() as progress:
@@ -67,7 +67,7 @@ def download_from_r2(client: S3Client, object_key: str, download_path: Path) -> 
                 f"[cyan]Downloading {download_path.name}...", total=file_size
             )
             client.download_file(
-                config.R2_BUCKET,
+                settings.bucket,
                 object_key,
                 str(download_path),
                 Callback=lambda bytes_transferred: progress.update(
@@ -140,7 +140,7 @@ def delete_from_r2(client: S3Client, object_key: str) -> None:
     """Deletes an object from the R2 bucket."""
     console.print(f"Attempting to delete [yellow]{object_key}[/] from R2...")
     try:
-        client.delete_object(Bucket=config.R2_BUCKET, Key=object_key)
+        client.delete_object(Bucket=settings.bucket, Key=object_key)
         console.print("✅ Rollback deletion successful.")
     except Exception as e:
         # This is a best-effort cleanup. We notify the user if it fails.
@@ -159,24 +159,24 @@ def verify_r2_access() -> tuple[bool, str]:
     """
     try:
         client = get_r2_client()
-        console.print(f"Attempting to access bucket: [cyan]{config.R2_BUCKET}[/]...")
-        client.head_bucket(Bucket=config.R2_BUCKET)
+        console.print(f"Attempting to access bucket: [cyan]{settings.bucket}[/]...")
+        client.head_bucket(Bucket=settings.bucket)
         return (
             True,
-            f"Successfully connected to bucket '{config.R2_BUCKET}'.",
+            f"Successfully connected to bucket '{settings.bucket}'.",
         )
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code")
         if error_code == "404" or "NoSuchBucket" in str(e):
             return (
                 False,
-                f"Bucket '{config.R2_BUCKET}' not found. Please check the name.",
+                f"Bucket '{settings.bucket}' not found. Please check the name.",
             )
         if error_code == "403" or "AccessDenied" in str(e):
             return (
                 False,
                 "Access Denied. The provided credentials do not have permission "
-                f"to access the bucket '{config.R2_BUCKET}'.",
+                f"to access the bucket '{settings.bucket}'.",
             )
         return (
             False,
