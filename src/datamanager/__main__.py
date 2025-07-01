@@ -136,7 +136,9 @@ def update(
         manifest.update_latest_history_entry(name, new_entry)
         # Amend the previous commit to include the final manifest content
         subprocess.run(["git", "add", config.MANIFEST_FILE])
-        subprocess.run(["git", "commit", "--amend", "--no-edit"], check=True)
+        subprocess.run(
+            ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
+        )
 
         console.print(f"Uploading [green]{file.name}[/] to R2...")
         core.upload_to_r2(client, file, new_r2_key)
@@ -279,7 +281,9 @@ def create(
         # Amend the previous commit with the final manifest content
         manifest.update_dataset(name, final_dataset_obj)
         subprocess.run(["git", "add", config.MANIFEST_FILE])
-        subprocess.run(["git", "commit", "--amend", "--no-edit"], check=True)
+        subprocess.run(
+            ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
+        )
 
         console.print(f"Uploading [green]{file.name}[/] to R2...")
         core.upload_to_r2(core.get_r2_client(), file, new_r2_key)
