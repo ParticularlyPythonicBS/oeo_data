@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: datamanager
+Version: 0.1.0
+Summary: A command-line tool for managing versioned data in Cloudflare R2 buckets
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: boto3>=1.38.46
+Requires-Dist: python-dotenv>=1.1.1
+Requires-Dist: questionary>=2.1.0
+Requires-Dist: rich>=14.0.0
+Requires-Dist: typer>=0.16.0
+Dynamic: license-file

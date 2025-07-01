@@ -12,6 +12,14 @@ from rich.console import Console
 
 import datamanager.config as config
 
+__all__ = [
+    "read_manifest",
+    "write_manifest",
+    "get_dataset",
+    "add_history_entry",
+    "update_latest_history_entry",
+]
+
 # Initialize console for any feedback
 console = Console()
 MANIFEST_PATH = Path(config.MANIFEST_FILE)

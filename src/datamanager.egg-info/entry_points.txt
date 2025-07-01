@@ -1,0 +1,2 @@
+[console_scripts]
+datamanager = datamanager.__main__:app
