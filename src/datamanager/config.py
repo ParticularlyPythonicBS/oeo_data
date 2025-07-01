@@ -21,7 +21,7 @@ def _need(var: str) -> str:
     return str(val)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Settings:
     account_id: str = _need("R2_ACCOUNT_ID")
     access_key: str = _need("R2_ACCESS_KEY_ID")

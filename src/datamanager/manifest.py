@@ -57,9 +57,10 @@ def write_manifest(data: list[dict[str, Any]]) -> None:
     Args:
         data: The list of dataset dictionaries to write to the file.
     """
-    with MANIFEST_PATH.open("w") as f:
-        # Use indent=2 for human-readable JSON and clean git diffs
-        json.dump(data, f, indent=2)
+    tmp = MANIFEST_PATH.with_suffix(".json.tmp")
+    payload = json.dumps(data, indent=2) + "\n"  # ensure newline at end
+    tmp.write_text(payload, encoding="utf-8")
+    tmp.replace(MANIFEST_PATH)  # atomic swap
 
 
 def get_dataset(name: str) -> Optional[dict[str, Any]]:
