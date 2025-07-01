@@ -20,6 +20,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.14.1",
+    "ruff>=0.12.1",
     "types-boto3[essential]>=1.39.0",
 ]
 
