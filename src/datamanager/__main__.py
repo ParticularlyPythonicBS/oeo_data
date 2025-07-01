@@ -146,13 +146,13 @@ def _run_update_logic(name: str, file: Path) -> None:
     try:
         core.upload_to_r2(client, file, new_r2_key)
         subprocess.run(["git", "push"], check=True, capture_output=True)
-        console.print("\n[bold green]🎉  Update complete and pushed![/]")
-    except (subprocess.CalledProcessError, Exception) as exc:
+        console.print("\n[bold green]🎉 Update complete and pushed successfully![/]")
+    except (subprocess.CalledProcessError, Exception):
         console.print("\n[bold red]Error during finalisation![/]")
         core.delete_from_r2(client, new_r2_key)
         subprocess.run(["git", "reset", "--hard", "HEAD~1"], check=True)
-        console.print("[yellow]Rollback complete – repo restored.[/]")
-        raise typer.Exit() from exc
+        console.print("\n[bold yellow]Rolling back changes...[/]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -269,12 +269,14 @@ def create(
     try:
         core.upload_to_r2(core.get_r2_client(), file, r2_key)
         subprocess.run(["git", "push"], check=True, capture_output=True)
-        console.print("\n[bold green]🎉  Dataset created & pushed![/]")
-    except (subprocess.CalledProcessError, Exception) as exc:
-        console.print("\n[red]Error during finalisation – rolling back.[/]")
+        console.print(
+            "\n[bold green]🎉 New dataset created and pushed successfully![/]"
+        )
+    except (subprocess.CalledProcessError, Exception):
+        console.print("\n[bold yellow]Rolling back changes...[/]")
         core.delete_from_r2(core.get_r2_client(), r2_key)
         subprocess.run(["git", "reset", "--hard", "HEAD~1"], check=True)
-        raise typer.Exit() from exc
+        raise typer.Exit(1)
 
 
 def _update_interactive() -> None:
