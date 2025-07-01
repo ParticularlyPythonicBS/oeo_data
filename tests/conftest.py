@@ -4,6 +4,7 @@ import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
+from typing import Any, Generator
 
 import pytest
 
@@ -29,8 +30,8 @@ INITIAL_MANIFEST_DATA = [
 ]
 
 
-@pytest.fixture  # type: ignore[misc]
-def test_repo(tmp_path: Path):
+@pytest.fixture
+def test_repo(tmp_path: Path) -> Generator[Path, Any, None]:
     """
     Creates a temporary directory initialized as a Git repository,
     with a pre-populated and committed manifest.json and dummy sqlite files.

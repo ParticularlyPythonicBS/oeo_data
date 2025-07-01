@@ -24,7 +24,7 @@ console = Console()
 
 
 @app.command()
-def verify():
+def verify() -> None:
     """Verifies the Cloudflare R2 credentials and bucket access."""
     console.print("🔍 Verifying Cloudflare R2 configuration...")
     with console.status("[bold yellow]Connecting to R2...[/]"):
@@ -38,7 +38,7 @@ def verify():
 
 
 @app.command()
-def list_datasets():
+def list_datasets() -> None:
     """Lists all datasets tracked in the manifest."""
     data = manifest.read_manifest()
     table = Table("Dataset Name", "Latest Version", "Last Updated", "SHA256")
@@ -53,7 +53,7 @@ def list_datasets():
     console.print(table)
 
 
-def _run_update_logic(name: str, file: Path):
+def _run_update_logic(name: str, file: Path) -> None:
     """The core logic for performing a dataset update."""
     console.print(f"🚀 Starting update for [bold cyan]{name}[/]...")
 
@@ -153,16 +153,16 @@ def _run_update_logic(name: str, file: Path):
     console.print("\n[bold green]🎉 Update complete and pushed successfully![/]")
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def update(
     name: str = typer.Argument(..., help="The logical name of the dataset."),
     file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
-):
+) -> None:
     """Updates a dataset with a new version, committing and pushing the result."""
     _run_update_logic(name, file)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def pull(
     name: str = typer.Argument(..., help="The logical name of the dataset to pull."),
     version: str = typer.Option(
@@ -177,7 +177,7 @@ def pull(
         "-o",
         help="Output path for the file. Defaults to the dataset name in the current directory.",
     ),
-):
+) -> None:
     """Pulls a specific version of a dataset from R2 and verifies its integrity."""
     console.print(f"🔎 Locating version '{version}' for dataset '{name}'...")
     version_entry = manifest.get_version_entry(name, version)
@@ -215,11 +215,11 @@ def pull(
         raise typer.Exit(1)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def create(
     name: str = typer.Argument(..., help="The logical name for the new dataset."),
     file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
-):
+) -> None:
     """Adds and uploads a completely new dataset to the manifest."""
     console.print(f"🚀 Creating new dataset: [bold cyan]{name}[/]...")
 
@@ -300,7 +300,7 @@ def create(
     console.print("\n[bold green]🎉 New dataset created and pushed successfully![/]")
 
 
-def _update_interactive():
+def _update_interactive() -> None:
     """Guides the user through updating a dataset interactively."""
     console.print("\n[bold]Interactive Dataset Update[/]")
 
@@ -349,8 +349,8 @@ def _update_interactive():
         pass
 
 
-@app.callback(invoke_without_command=True)  # type: ignore[misc]
-def main(ctx: typer.Context):
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context) -> None:
     """Entrypoint that shows a TUI if no command is given."""
     if ctx.invoked_subcommand is not None:
         return
@@ -377,7 +377,7 @@ def main(ctx: typer.Context):
         action()
 
     else:
-        raise typer.Exit(f"Unknown action: {action}")
+        raise NotImplementedError(f"Action '{choice}' is not implemented yet.")
 
 
 if __name__ == "__main__":

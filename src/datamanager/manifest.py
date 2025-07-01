@@ -50,7 +50,7 @@ def read_manifest() -> list[dict[str, Any]]:
         raise
 
 
-def write_manifest(data: list[dict[str, Any]]):
+def write_manifest(data: list[dict[str, Any]]) -> None:
     """
     Writes the provided data structure to the manifest.json file.
 
@@ -79,7 +79,7 @@ def get_dataset(name: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def add_history_entry(name: str, new_entry: dict[str, Any]):
+def add_history_entry(name: str, new_entry: dict[str, Any]) -> None:
     """
     Adds a new version entry to the beginning of a dataset's history.
 
@@ -109,7 +109,7 @@ def add_history_entry(name: str, new_entry: dict[str, Any]):
     write_manifest(data)
 
 
-def update_latest_history_entry(name: str, final_entry: dict[str, Any]):
+def update_latest_history_entry(name: str, final_entry: dict[str, Any]) -> None:
     """
     Replaces the most recent history entry of a dataset.
 
@@ -176,7 +176,7 @@ def get_version_entry(
     return None
 
 
-def add_new_dataset(dataset_object: dict[str, Any]):
+def add_new_dataset(dataset_object: dict[str, Any]) -> None:
     """
     Appends a new dataset object to the manifest file.
 
@@ -188,7 +188,7 @@ def add_new_dataset(dataset_object: dict[str, Any]):
     write_manifest(data)
 
 
-def update_dataset(name: str, updated_dataset: dict[str, Any]):
+def update_dataset(name: str, updated_dataset: dict[str, Any]) -> None:
     """
     Finds a dataset by name and replaces the entire object.
     Used for amending the commit hash after the initial commit.

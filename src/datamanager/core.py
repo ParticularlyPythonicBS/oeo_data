@@ -39,7 +39,7 @@ def hash_file(file_path: Path) -> str:
     return h.hexdigest()
 
 
-def upload_to_r2(client, file_path: Path, object_key: str):
+def upload_to_r2(client: S3Client, file_path: Path, object_key: str) -> None:
     """Uploads a file to R2 with a progress bar."""
     file_size = file_path.stat().st_size
     with Progress() as progress:
@@ -56,7 +56,7 @@ def upload_to_r2(client, file_path: Path, object_key: str):
         )
 
 
-def download_from_r2(client, object_key: str, download_path: Path):
+def download_from_r2(client: S3Client, object_key: str, download_path: Path) -> None:
     """Downloads a file from R2 with a progress bar."""
     try:
         file_size = client.head_object(Bucket=config.R2_BUCKET, Key=object_key)[
@@ -136,7 +136,7 @@ def generate_sql_diff(old_file: Path, new_file: Path) -> str:
         return result.stdout
 
 
-def delete_from_r2(client, object_key: str):
+def delete_from_r2(client: S3Client, object_key: str) -> None:
     """Deletes an object from the R2 bucket."""
     console.print(f"Attempting to delete [yellow]{object_key}[/] from R2...")
     try:

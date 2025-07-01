@@ -2,14 +2,15 @@
 import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock
+from pytest_mock import MockerFixture
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, _ClientErrorResponseTypeDef
 
 from datamanager import core
 from datamanager.config import config
 
 
-def test_hash_file(tmp_path: Path):
+def test_hash_file(tmp_path: Path) -> None:
     """Test SHA256 hash calculation."""
     test_file = tmp_path / "test.txt"
     test_file.write_text("hello world")
@@ -18,7 +19,7 @@ def test_hash_file(tmp_path: Path):
     assert core.hash_file(test_file) == expected_hash
 
 
-def test_generate_sql_diff(tmp_path: Path):
+def test_generate_sql_diff(tmp_path: Path) -> None:
     """Test creating a diff between two sqlite files."""
     old_db_path = tmp_path / "old.sqlite"
     new_db_path = tmp_path / "new.sqlite"
@@ -42,7 +43,7 @@ def test_generate_sql_diff(tmp_path: Path):
     assert "+INSERT INTO users VALUES(2,'Bob');" in diff
 
 
-def test_r2_interactions(mocker, tmp_path: Path):
+def test_r2_interactions(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that our code calls the boto3 client correctly."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
@@ -62,7 +63,7 @@ def test_r2_interactions(mocker, tmp_path: Path):
     )
 
 
-def test_verify_r2_access_success(mocker):
+def test_verify_r2_access_success(mocker: MockerFixture) -> None:
     """Test successful R2 access verification."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
@@ -74,11 +75,13 @@ def test_verify_r2_access_success(mocker):
     mock_client.head_bucket.assert_called_once()
 
 
-def test_verify_r2_access_no_such_bucket(mocker):
+def test_verify_r2_access_no_such_bucket(mocker: MockerFixture) -> None:
     """Test R2 verification failure due to a non-existent bucket."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response = {"Error": {"Code": "404", "Message": "Not Found"}}
+    error_response: _ClientErrorResponseTypeDef = {
+        "Error": {"Code": "404", "Message": "Not Found"}
+    }
     mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
 
     success, message = core.verify_r2_access()
@@ -87,11 +90,13 @@ def test_verify_r2_access_no_such_bucket(mocker):
     assert "not found" in message
 
 
-def test_verify_r2_access_access_denied(mocker):
+def test_verify_r2_access_access_denied(mocker: MockerFixture) -> None:
     """Test R2 verification failure due to permissions."""
     mock_client = MagicMock()
     mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response = {"Error": {"Code": "403", "Message": "Access Denied"}}
+    error_response: _ClientErrorResponseTypeDef = {
+        "Error": {"Code": "403", "Message": "Access Denied"}
+    }
     mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
 
     success, message = core.verify_r2_access()

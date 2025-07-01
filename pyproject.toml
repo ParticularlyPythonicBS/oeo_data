@@ -28,16 +28,18 @@ dev = [
 datamanager = "datamanager.__main__:app"
 
 [tool.mypy]
-ignore_missing_imports = true
 python_version = "3.12"
+strict = true
+ignore_missing_imports = true
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_return_any = true
 warn_unused_ignores = true
 show_error_codes = true
-enable_error_code = ["attr-defined"]
-disable_error_code = ["import-untyped", "no-untyped-def"]
-strict = true
+exclude = [
+    "tests/*",
+]
+
 
 [tool.pytest.ini_options]
 addopts = "--cov=datamanager --cov-report term"

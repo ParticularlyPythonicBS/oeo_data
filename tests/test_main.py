@@ -2,6 +2,10 @@
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
+
+from pytest_mock import MockerFixture
+
 
 from typer.testing import CliRunner
 
@@ -14,7 +18,9 @@ runner = CliRunner()
 original_subprocess_run = subprocess.run
 
 
-def selective_mock_subprocess_run(*args, **kwargs):
+def selective_mock_subprocess_run(
+    *args: Any, **kwargs: Any
+) -> subprocess.CompletedProcess[bytes] | Any:
     """
     A side_effect for mocking subprocess.run.
     It mocks 'git push' but lets all other commands pass through to the original.
@@ -29,7 +35,7 @@ def selective_mock_subprocess_run(*args, **kwargs):
     return original_subprocess_run(*args, **kwargs)
 
 
-def test_update_success(test_repo, mocker):
+def test_update_success(test_repo: Path, mocker: MockerFixture) -> None:
     """Test the full, successful update workflow."""
     os.chdir(test_repo)
 
@@ -49,7 +55,7 @@ def test_update_success(test_repo, mocker):
     mock_r2_client.upload_file.assert_called_once()
 
 
-def test_update_failure_and_rollback(test_repo, mocker):
+def test_update_failure_and_rollback(test_repo: Path, mocker: MockerFixture) -> None:
     """Test that a failure during R2 upload triggers a full rollback."""
     os.chdir(test_repo)
 
@@ -83,7 +89,7 @@ def test_update_failure_and_rollback(test_repo, mocker):
     assert initial_manifest_content == final_manifest_content
 
 
-def test_update_no_changes(test_repo, mocker):
+def test_update_no_changes(test_repo: Path, mocker: MockerFixture) -> None:
     """Test the command when the file hash is identical."""
     os.chdir(test_repo)
     mocker.patch("datamanager.core.get_r2_client").return_value
@@ -96,7 +102,7 @@ def test_update_no_changes(test_repo, mocker):
     assert "No changes detected" in result.stdout
 
 
-def test_verify_command_success(mocker):
+def test_verify_command_success(mocker: MockerFixture) -> None:
     """Test the 'verify' command with successful credentials."""
     mocker.patch(
         "datamanager.core.verify_r2_access",
@@ -108,7 +114,7 @@ def test_verify_command_success(mocker):
     assert "Success message!" in result.stdout
 
 
-def test_verify_command_failure(mocker):
+def test_verify_command_failure(mocker: MockerFixture) -> None:
     """Test the 'verify' command with failed credentials."""
     mocker.patch(
         "datamanager.core.verify_r2_access",
@@ -120,7 +126,7 @@ def test_verify_command_failure(mocker):
     assert "Failure message!" in result.stdout
 
 
-def test_pull_command_latest_success(test_repo, mocker):
+def test_pull_command_latest_success(test_repo: Path, mocker: MockerFixture) -> None:
     """Test the 'pull' command for the latest version."""
     os.chdir(test_repo)
     mock_pull = mocker.patch("datamanager.core.pull_and_verify", return_value=True)
@@ -136,7 +142,7 @@ def test_pull_command_latest_success(test_repo, mocker):
     assert call_args[2] == Path("core-dataset.sqlite")  # Check output path
 
 
-def test_pull_command_version_not_found(test_repo, mocker):
+def test_pull_command_version_not_found(test_repo: Path, mocker: MockerFixture) -> None:
     """Test pulling a version that does not exist."""
     os.chdir(test_repo)
     result = runner.invoke(app, ["pull", "core-dataset.sqlite", "--version", "v99"])
@@ -144,7 +150,7 @@ def test_pull_command_version_not_found(test_repo, mocker):
     assert "Could not find version 'v99'" in result.stdout
 
 
-def test_create_success(test_repo, mocker):
+def test_create_success(test_repo: Path, mocker: MockerFixture) -> None:
     """Test creating a new dataset successfully."""
     os.chdir(test_repo)
     new_file = test_repo / "new_dataset.sqlite"
@@ -172,7 +178,7 @@ def test_create_success(test_repo, mocker):
     assert final_manifest[1]["latestVersion"] == "v1"
 
 
-def test_create_failure_already_exists(test_repo, mocker):
+def test_create_failure_already_exists(test_repo: Path, mocker: MockerFixture) -> None:
     """Test that 'create' fails if the dataset name already exists."""
     os.chdir(test_repo)
     new_file = test_repo / "another.sqlite"
@@ -184,7 +190,7 @@ def test_create_failure_already_exists(test_repo, mocker):
     assert "already exists" in result.stdout
 
 
-def test_create_failure_and_rollback(test_repo, mocker):
+def test_create_failure_and_rollback(test_repo: Path, mocker: MockerFixture) -> None:
     """Test that 'create' rolls back correctly on R2 upload failure."""
     os.chdir(test_repo)
     new_file = test_repo / "new_dataset.sqlite"
