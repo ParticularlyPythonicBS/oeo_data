@@ -309,7 +309,6 @@ def _run_create_logic(ctx: typer.Context, name: str, file: Path) -> None:
         raise typer.Exit(1)
 
 
-# --- Updated `create` command (now a thin wrapper) ---
 @app.command()
 def create(
     ctx: typer.Context,
@@ -322,7 +321,6 @@ def create(
     _run_create_logic(ctx, name, file)
 
 
-# --- New Interactive Create Function ---
 def _create_interactive(ctx: typer.Context) -> None:
     """Guides the user through creating a new dataset interactively."""
     console.print("\n[bold]Interactive Dataset Creation[/]")
