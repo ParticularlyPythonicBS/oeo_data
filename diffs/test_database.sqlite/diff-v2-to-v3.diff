@@ -1,0 +1,10 @@
+--- /tmp/tmp99deojlt/old.sql	2025-06-30 21:45:53.977066748 -0400
++++ /tmp/tmp99deojlt/new.sql	2025-06-30 21:45:53.980066777 -0400
+@@ -1,6 +1,6 @@
+ PRAGMA foreign_keys=OFF;
+ BEGIN TRANSACTION;
+ CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+-INSERT INTO users VALUES(1,'Alicia');
++INSERT INTO users VALUES(1,'Alice');
+ INSERT INTO users VALUES(2,'Bob');
+ COMMIT;
