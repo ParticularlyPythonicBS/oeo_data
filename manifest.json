@@ -12,5 +12,19 @@
         "commit": "cc99320"
       }
     ]
+  },
+  {
+    "fileName": "US_9R_8D_SPSA.sqlite",
+    "latestVersion": "v1",
+    "history": [
+      {
+        "version": "v1",
+        "timestamp": "2025-07-01T01:05:46.044939Z",
+        "sha256": "95e3fe6e73791ffe9843bda132043645e38615e9fcd5624b91204a14db998b6c",
+        "r2_object_key": "US_9R_8D_SPSA/v1-95e3fe6e73791ffe9843bda132043645e38615e9fcd5624b91204a14db998b6c.sqlite",
+        "diffFromPrevious": null,
+        "commit": "b7292df"
+      }
+    ]
   }
 ]
