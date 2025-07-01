@@ -14,6 +14,7 @@
 !.pre-commit-config.yaml
 !.python-version
 !netlify.toml
+!manifest.json
 
 # recursively re-ignore
 __pycache__
