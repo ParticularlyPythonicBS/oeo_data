@@ -14,6 +14,28 @@ from typing import Callable, Optional
 from datamanager.config import settings
 from datamanager import core, manifest
 
+# Git helpers
+
+
+def _stage_all() -> None:
+    """Stage every working-tree change."""
+    subprocess.run(["git", "add", "-A"], check=True)
+
+
+def _build_detached_commit(message: str) -> str:
+    """
+    Create a commit object from the **current index** without
+    moving HEAD.  Returns the full commit SHA.
+    """
+    tree = subprocess.check_output(["git", "write-tree"], text=True).strip()
+    parent = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    sha = subprocess.check_output(
+        ["git", "commit-tree", tree, "-p", parent, "-m", message],
+        text=True,
+    ).strip()
+    return sha
+
+
 # Initialize Typer app and Rich console
 app = typer.Typer(
     name="datamanager",
@@ -54,103 +76,83 @@ def list_datasets() -> None:
 
 
 def _run_update_logic(name: str, file: Path) -> None:
-    """The core logic for performing a dataset update."""
-    console.print(f"🚀 Starting update for [bold cyan]{name}[/]...")
+    console.print(f"🚀  Updating [cyan]{name}[/]…")
 
-    # --- 1. Local Preparation ---
+    # Step 1. Pre-flight & diff
     new_hash = core.hash_file(file)
-    dataset = manifest.get_dataset(name)
-    if not dataset:
-        console.print(f"[bold red]Error:[/] Dataset '{name}' not found.")
+    ds = manifest.get_dataset(name)
+    if not ds:
+        console.print(f"[red]Dataset '{name}' not found.[/]")
         raise typer.Exit(1)
 
-    latest_version = dataset["history"][0]
-    if new_hash == latest_version["sha256"]:
-        console.print(
-            "✅ No changes detected. File is identical to the latest version."
-        )
+    latest = ds["history"][0]
+    if new_hash == latest["sha256"]:
+        console.print("✅  No changes detected (identical file).")
         return
 
-    prev_version_num = int(latest_version["version"].lstrip("v"))
-    new_version = f"v{prev_version_num + 1}"
-    console.print(
-        f"Change detected! New version will be [bold magenta]{new_version}[/]."
-    )
+    new_ver = f"v{int(latest['version'].lstrip('v')) + 1}"
+    console.print(f"Detected change → next version will be [magenta]{new_ver}[/]")
 
     client = core.get_r2_client()
-    with tempfile.TemporaryDirectory() as tempdir:
-        old_file_path = Path(tempdir) / "old_version.sqlite"
-        core.download_from_r2(client, latest_version["r2_object_key"], old_file_path)
-        diff_content = core.generate_sql_diff(old_file_path, file)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        old_path = Path(tmpdir) / "prev.sqlite"
+        core.download_from_r2(client, latest["r2_object_key"], old_path)
+        diff_text = core.generate_sql_diff(old_path, file)
 
-    diff_git_path = None
-    if diff_content.count("\n") <= settings.max_diff_lines:
-        diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
-        diff_git_path = Path("diffs") / name / diff_filename
-        console.print(f"📝 Generating diff file: [green]{diff_git_path}[/]")
+    diff_git_path: Path | None = None
+    if diff_text.count("\n") <= settings.max_diff_lines:
+        diff_git_path = (
+            Path("diffs") / name / f"diff-{latest['version']}-to-{new_ver}.diff"
+        )
         diff_git_path.parent.mkdir(parents=True, exist_ok=True)
-        diff_git_path.write_text(diff_content)
+        diff_git_path.write_text(diff_text)
         subprocess.run(["git", "add", str(diff_git_path)])
-        console.print(f"📝 Diff stored in Git at: [green]{diff_git_path}[/]")
+        console.print(f"📝  Diff stored at [green]{diff_git_path}[/]")
     else:
-        console.print("📝 Diff is too large, will not be stored in Git.")
+        console.print("📝  Diff too large – omitted from Git.")
 
-    manifest.add_history_entry(name, {})  # Add a temporary placeholder
-    subprocess.run(["git", "add", settings.manifest_file])
-
-    # --- 2. Prompt and Commit Locally ---
-    commit_message = questionary.text(
-        "Enter commit message:", default=f"Update {name} to {new_version}"
+    # Step 2. Commit message
+    msg = questionary.text(
+        "Enter commit message:",
+        default=f"Update {name} → {new_ver}",
     ).ask()
-
-    if not commit_message:
-        console.print("[bold red]Commit cancelled. Aborting update.[/]")
-        subprocess.run(["git", "reset"])  # Unstage all files
+    if not msg:
+        console.print("[red]Commit cancelled.[/]")
         raise typer.Exit()
 
-    subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
-    commit_hash = (
-        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-        .decode()
-        .strip()
-    )
+    # Step 3. Build provisional commit (without manifest)
+    _stage_all()
+    provisional_sha = _build_detached_commit(msg)
+    subprocess.run(["git", "reset", "--soft", provisional_sha], check=True)
 
-    # --- 3. Transactional Upload and Push ---
-    r2_dir = Path(latest_version["r2_object_key"]).parent
-    new_r2_key = f"{r2_dir}/{new_version}-{new_hash}.sqlite"
+    # Step 4. Write manifest entry with the provisional hash
+    r2_dir = Path(latest["r2_object_key"]).parent
+    new_r2_key = f"{r2_dir}/{new_ver}-{new_hash}.sqlite"
+    entry = {
+        "version": new_ver,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "sha256": new_hash,
+        "r2_object_key": new_r2_key,
+        "diffFromPrevious": str(diff_git_path) if diff_git_path else None,
+        "commit": provisional_sha[:7],  # short form
+    }
+    manifest.update_latest_history_entry(name, entry)
+    subprocess.run(["git", "add", settings.manifest_file], check=True)
 
+    # Step 5. Amend once – manifest now included
+    subprocess.run(["git", "commit", "--amend", "-m", msg], check=True)
+
+    # Step 6. Upload & push (rollback on failure)
     try:
-        new_entry = {
-            "version": new_version,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "sha256": new_hash,
-            "r2_object_key": new_r2_key,
-            "diffFromPrevious": str(diff_git_path) if diff_git_path else None,
-            "commit": commit_hash,
-        }
-        manifest.update_latest_history_entry(name, new_entry)
-        subprocess.run(["git", "add", settings.manifest_file])
-        subprocess.run(
-            ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
-        )
         core.upload_to_r2(client, file, new_r2_key)
         subprocess.run(["git", "push"], check=True, capture_output=True)
-
-    except (subprocess.CalledProcessError, Exception) as e:
-        console.print("\n[bold red]An error occurred during the finalization step![/]")
-        if isinstance(e, subprocess.CalledProcessError):
-            console.print(f"[red]Error during git operation:\n{e.stderr.decode()}[/]")
-        else:
-            console.print(f"[red]Error during R2 upload: {e}[/]")
-        console.print("\n[bold yellow]Rolling back changes...[/]")
+        console.print("\n[bold green]🎉  Update complete and pushed![/]")
+    except (subprocess.CalledProcessError, Exception) as exc:
+        console.print("\n[bold red]Error during finalisation![/]")
         core.delete_from_r2(client, new_r2_key)
-        subprocess.run(["git", "reset", "--hard", "HEAD~1"])
-        console.print(
-            "\n[bold yellow]Rollback complete. Your repository is in its previous state.[/]"
-        )
-        raise typer.Exit(1)
-
-    console.print("\n[bold green]🎉 Update complete and pushed successfully![/]")
+        subprocess.run(["git", "reset", "--hard", "HEAD~1"], check=True)
+        console.print("[yellow]Rollback complete – repo restored.[/]")
+        raise typer.Exit() from exc
 
 
 @app.command()
@@ -217,87 +219,62 @@ def pull(
 
 @app.command()
 def create(
-    name: str = typer.Argument(..., help="The logical name for the new dataset."),
-    file: Path = typer.Argument(..., help="Path to the new .sqlite file.", exists=True),
+    name: str = typer.Argument(...),
+    file: Path = typer.Argument(..., exists=True),
 ) -> None:
-    """Adds and uploads a completely new dataset to the manifest."""
-    console.print(f"🚀 Creating new dataset: [bold cyan]{name}[/]...")
-
-    # 1. Pre-flight checks
+    """Add a brand-new dataset (v1) to the manifest."""
+    console.print(f"🚀  Creating dataset [cyan]{name}[/]…")
     if manifest.get_dataset(name):
-        console.print(
-            f"[bold red]Error:[/] Dataset '{name}' already exists. "
-            "Use 'datamanager update' to create a new version."
-        )
+        console.print(f"[red]Dataset '{name}' already exists.[/]")
         raise typer.Exit(1)
 
-    # 2. Local Preparation
     new_hash = core.hash_file(file)
-    version = "v1"
-    r2_dir = Path(name).stem  # Use the filename without extension as a directory
-    new_r2_key = f"{r2_dir}/{version}-{new_hash}.sqlite"
+    r2_dir = Path(name).stem
+    r2_key = f"{r2_dir}/v1-{new_hash}.sqlite"
 
-    # 3. Prompt and Commit Locally
-    commit_message = questionary.text(
-        "Enter commit message:", default=f"feat: Add new dataset '{name}'"
+    msg = questionary.text(
+        "Commit message:", default=f"feat: add dataset '{name}'"
     ).ask()
-
-    if not commit_message:
-        console.print("[bold red]Commit cancelled. Aborting creation.[/]")
+    if not msg:
+        console.print("[red]Commit cancelled.[/]")
         raise typer.Exit()
 
-    # Create a temporary dataset object, add it to manifest, and commit
-    temp_dataset_obj = {"fileName": name, "history": [{}]}
-    manifest.add_new_dataset(temp_dataset_obj)
-    subprocess.run(["git", "add", settings.manifest_file])
-    subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
-    commit_hash = (
-        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-        .decode()
-        .strip()
-    )
+    # Stage everything first (diffs none for create)
+    temp_dataset = {"fileName": name, "history": [{}]}
+    manifest.add_new_dataset(temp_dataset)
+    _stage_all()
+    provisional_sha = _build_detached_commit(msg)
+    subprocess.run(["git", "reset", "--soft", provisional_sha], check=True)
 
-    # 4. Transactional Upload and Push
+    final_dataset = {
+        "fileName": name,
+        "latestVersion": "v1",
+        "history": [
+            {
+                "version": "v1",
+                "timestamp": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "sha256": new_hash,
+                "r2_object_key": r2_key,
+                "diffFromPrevious": None,
+                "commit": provisional_sha[:7],
+            }
+        ],
+    }
+    manifest.update_dataset(name, final_dataset)
+    subprocess.run(["git", "add", settings.manifest_file], check=True)
+    subprocess.run(["git", "commit", "--amend", "-m", msg], check=True)
+
     try:
-        # Create the final, complete dataset object with the real commit hash
-        final_dataset_obj = {
-            "fileName": name,
-            "latestVersion": version,
-            "history": [
-                {
-                    "version": version,
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
-                    "sha256": new_hash,
-                    "r2_object_key": new_r2_key,
-                    "diffFromPrevious": None,
-                    "commit": commit_hash,
-                }
-            ],
-        }
-        # Amend the previous commit with the final manifest content
-        manifest.update_dataset(name, final_dataset_obj)
-        subprocess.run(["git", "add", settings.manifest_file])
-        subprocess.run(
-            ["git", "commit", "--amend", "--no-edit", "--no-verify"], check=True
-        )
-
-        console.print(f"Uploading [green]{file.name}[/] to R2...")
-        core.upload_to_r2(core.get_r2_client(), file, new_r2_key)
-
-        console.print("Pushing changes to remote repository...")
+        core.upload_to_r2(core.get_r2_client(), file, r2_key)
         subprocess.run(["git", "push"], check=True, capture_output=True)
-
-    except (subprocess.CalledProcessError, Exception):
-        console.print("\n[bold red]An error occurred during finalization![/]")
-        console.print("\n[bold yellow]Rolling back changes...[/]")
-        core.delete_from_r2(core.get_r2_client(), new_r2_key)
-        subprocess.run(["git", "reset", "--hard", "HEAD~1"])
-        console.print("\n[bold yellow]Rollback complete.[/]")
-        raise typer.Exit(1)
-
-    console.print("\n[bold green]🎉 New dataset created and pushed successfully![/]")
+        console.print("\n[bold green]🎉  Dataset created & pushed![/]")
+    except (subprocess.CalledProcessError, Exception) as exc:
+        console.print("\n[red]Error during finalisation – rolling back.[/]")
+        core.delete_from_r2(core.get_r2_client(), r2_key)
+        subprocess.run(["git", "reset", "--hard", "HEAD~1"], check=True)
+        raise typer.Exit() from exc
 
 
 def _update_interactive() -> None:
