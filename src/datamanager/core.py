@@ -1,8 +1,12 @@
 # datamanager/core.py
+import difflib
 import hashlib
+import io
+import shutil
+import sqlite3
 import subprocess
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePath
 import os
 
 from botocore.exceptions import ClientError
@@ -108,32 +112,55 @@ def pull_and_verify(object_key: str, expected_hash: str, output_path: Path) -> b
 
 
 def generate_sql_diff(old_file: Path, new_file: Path) -> str:
-    """Generates a textual SQL diff between two sqlite files."""
-    with tempfile.TemporaryDirectory() as tempdir:
-        old_sql = Path(tempdir) / "old.sql"
-        new_sql = Path(tempdir) / "new.sql"
+    """
+    Return a unified diff of the SQL schema/data between two SQLite files.
 
-        subprocess.run(
-            ["sqlite3", str(old_file), ".dump"],
-            check=True,
-            text=True,
-            stdout=old_sql.open("w"),
-        )
-        subprocess.run(
-            ["sqlite3", str(new_file), ".dump"],
-            check=True,
-            text=True,
-            stdout=new_sql.open("w"),
-        )
+    - If both sqlite cli and diff are available, use them (fast path).
+    - Otherwise fall back to std-lib `sqlite3` + `difflib` (pure-Python).
+    """
 
-        # Use diff to compare the SQL dumps
-        result = subprocess.run(
-            ["diff", "-u", str(old_sql), str(new_sql)],
-            capture_output=True,
-            text=True,
-        )
-        # diff exits with 1 if files differ, so we don't check for success
-        return result.stdout
+    has_cli = shutil.which("sqlite3") and shutil.which("diff")
+
+    if has_cli:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_dump, new_dump = Path(tmp) / "old.sql", Path(tmp) / "new.sql"
+            subprocess.run(
+                ["sqlite3", str(old_file), ".dump"],
+                text=True,
+                check=True,
+                stdout=old_dump.open("w"),
+            )
+            subprocess.run(
+                ["sqlite3", str(new_file), ".dump"],
+                text=True,
+                check=True,
+                stdout=new_dump.open("w"),
+            )
+            proc = subprocess.run(
+                ["diff", "-u", str(old_dump), str(new_dump)],
+                text=True,
+                capture_output=True,
+            )
+            return proc.stdout
+
+    # pure-Python fallback
+
+    def _dump(db: Path) -> str:
+        buf = io.StringIO()
+        con = sqlite3.connect(db)
+        for line in con.iterdump():
+            buf.write(f"{line}\n")
+        con.close()
+        return buf.getvalue()
+
+    old_sql, new_sql = _dump(old_file), _dump(new_file)
+    diff_iter = difflib.unified_diff(
+        old_sql.splitlines(keepends=True),
+        new_sql.splitlines(keepends=True),
+        fromfile=str(PurePath(old_file).name),
+        tofile=str(PurePath(new_file).name),
+    )
+    return "".join(diff_iter)
 
 
 def delete_from_r2(client: S3Client, object_key: str) -> None:
