@@ -11,6 +11,8 @@ permissions:
 jobs:
   publish-data:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allow pushing commits to the repository
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

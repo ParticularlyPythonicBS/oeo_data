@@ -41,7 +41,9 @@ for dataset in manifest_data:
         )
         latest_entry["commit"] = commit_hash
 
-        print(f"Publishing: {dataset['fileName']} v{latest_entry['version']}")
+        print(
+            f"Publishing: {dataset['fileName']} v{latest_entry['version'].lstrip('v')}"
+        )
         try:
             copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
             client.copy_object(
