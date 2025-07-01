@@ -1,6 +1,7 @@
 # datamanager/__main__.py
 import subprocess
 from datetime import datetime, timezone
+from dateutil.parser import isoparse
 from pathlib import Path
 import tempfile
 
@@ -36,6 +37,13 @@ def _build_detached_commit(message: str) -> str:
     return sha
 
 
+def _rel(iso: str) -> str:
+    dt = isoparse(iso)
+    delta = datetime.now(timezone.utc) - dt
+    hours = int(delta.total_seconds() // 3600)
+    return f"{hours} h ago"
+
+
 # Initialize Typer app and Rich console
 app = typer.Typer(
     name="datamanager",
@@ -69,7 +77,8 @@ def list_datasets() -> None:
         table.add_row(
             item["fileName"],
             latest["version"],
-            latest["timestamp"],
+            # latest["timestamp"],
+            f"{_rel(latest['timestamp'])} ({latest['timestamp']})",
             f"{latest['sha256'][:12]}...",
         )
     console.print(table)

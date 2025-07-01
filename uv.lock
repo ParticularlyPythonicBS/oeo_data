@@ -149,6 +149,7 @@ dev = [
     { name = "pytest-mock" },
     { name = "ruff" },
     { name = "types-boto3", extra = ["essential"] },
+    { name = "types-python-dateutil" },
 ]
 
 [package.metadata]
@@ -170,6 +171,7 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.14.1" },
     { name = "ruff", specifier = ">=0.12.1" },
     { name = "types-boto3", extras = ["essential"], specifier = ">=1.39.0" },
+    { name = "types-python-dateutil", specifier = ">=2.9.0.20250516" },
 ]
 
 [[package]]
@@ -633,6 +635,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d9/6b/7f271697adb88aaacdb22e1a7546db6f2538cddd7dedf16a898e06a99bba/types_boto3_sqs-1.39.0.tar.gz", hash = "sha256:aa39971515da52047db7a944bb2ded0de509f9d5395995821d71966569e32cba", size = 23397, upload-time = "2025-06-30T19:48:06.856Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/2f/51ae1ad614eb060b945d542a79233f3cc9eb9f33e7e84c6d2bbcd5671a72/types_boto3_sqs-1.39.0-py3-none-any.whl", hash = "sha256:bbe1d206443d29660ae2630e4558f90e04f89fe99e7010d0f6be1a921734ced4", size = 33493, upload-time = "2025-06-30T19:48:05.663Z" },
+]
+
+[[package]]
+name = "types-python-dateutil"
+version = "2.9.0.20250516"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/88/d65ed807393285204ab6e2801e5d11fbbea811adcaa979a2ed3b67a5ef41/types_python_dateutil-2.9.0.20250516.tar.gz", hash = "sha256:13e80d6c9c47df23ad773d54b2826bd52dbbb41be87c3f339381c1700ad21ee5", size = 13943, upload-time = "2025-05-16T03:06:58.385Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c5/3f/b0e8db149896005adc938a1e7f371d6d7e9eca4053a29b108978ed15e0c2/types_python_dateutil-2.9.0.20250516-py3-none-any.whl", hash = "sha256:2b2b3f57f9c6a61fba26a9c0ffb9ea5681c9b83e69cd897c6b5f668d9c0cab93", size = 14356, upload-time = "2025-05-16T03:06:57.249Z" },
 ]
 
 [[package]]

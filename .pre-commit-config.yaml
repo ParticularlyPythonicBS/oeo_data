@@ -42,6 +42,7 @@ repos:
           - types-boto3
           - typer
           - pytest
+          - types-python-dateutil
 
     # No committing secrets
   - repo: https://github.com/gitleaks/gitleaks
