@@ -36,12 +36,5 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Create dummy .env file
-        run: |
-          echo "R2_ACCOUNT_ID=dummy-id" >> .env
-          echo "R2_ACCESS_KEY_ID=dummy-key" >> .env
-          echo "R2_SECRET_ACCESS_KEY=dummy-secret" >> .env
-          echo "R2_BUCKET=dummy-bucket" >> .env
-
       - name: Run tests
         run: uv run pytest tests
