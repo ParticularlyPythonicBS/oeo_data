@@ -112,7 +112,7 @@ def update(
         raise typer.Exit()
 
     # We commit *before* the upload. The commit hash will be added to the manifest later.
-    subprocess.run(["git", "commit", "-m", commit_message], check=True)
+    subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
     commit_hash = (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
         .decode()
@@ -250,7 +250,7 @@ def create(
     temp_dataset_obj = {"fileName": name, "history": [{}]}
     manifest.add_new_dataset(temp_dataset_obj)
     subprocess.run(["git", "add", config.MANIFEST_FILE])
-    subprocess.run(["git", "commit", "-m", commit_message], check=True)
+    subprocess.run(["git", "commit", "--no-verify", "-m", commit_message], check=True)
     commit_hash = (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
         .decode()
