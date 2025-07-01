@@ -86,8 +86,9 @@ def _run_update_logic(name: str, file: Path):
     diff_git_path = None
     if diff_content.count("\n") <= config.MAX_DIFF_LINES:
         diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
-        diff_git_path = Path("diffs") / Path(name).with_suffix("") / diff_filename
-        diff_git_path.parent.mkdir(exist_ok=True)
+        diff_git_path = Path("diffs") / name / diff_filename
+        console.print(f"📝 Generating diff file: [green]{diff_git_path}[/]")
+        diff_git_path.parent.mkdir(parents=True, exist_ok=True)
         diff_git_path.write_text(diff_content)
         subprocess.run(["git", "add", str(diff_git_path)])
         console.print(f"📝 Diff stored in Git at: [green]{diff_git_path}[/]")
