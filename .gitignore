@@ -5,6 +5,7 @@
 !tests/
 !docs/
 !.github/
+!diffs
 
 !.gitignore
 !README.md
