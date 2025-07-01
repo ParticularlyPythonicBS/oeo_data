@@ -14,7 +14,6 @@ def get_required_env_var(env_dict: dict[str, Optional[str]], var_name: str) -> s
 
 
 dotenv_path = find_dotenv()
-print(f"Loading environment variables from: {dotenv_path}")
 
 env = dotenv_values(dotenv_path)
 

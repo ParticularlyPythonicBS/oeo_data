@@ -16,6 +16,7 @@
 !.python-version
 !netlify.toml
 !manifest.json
+!env.example
 
 # recursively re-ignore
 __pycache__
