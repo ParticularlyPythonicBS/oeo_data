@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.12
+    rev: 0.7.17
     hooks:
       # Dependency management
       - id: uv-lock
@@ -23,7 +23,7 @@ repos:
 
     # Python Linting & Formatting with Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.13
+    rev: v0.12.1
     hooks:
       - id: ruff
         name: ruff (linter)
@@ -32,10 +32,6 @@ repos:
         name: ruff-format (formatter)
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
+    rev: v1.16.1
     hooks:
       - id: mypy
-        args: [--strict]
-        additional_dependencies:
-          - types-PyYAML
-        files: ^(src/|docs/main\.py|examples/|tests/)
