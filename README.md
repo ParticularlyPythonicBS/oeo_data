@@ -14,27 +14,38 @@ This two-phase process ensures security and consistency:
 2. **Publish Phase (Automated):** After the proposal is approved and merged into the `main` branch, a GitHub Action performs a secure, server-side copy from the staging bucket to the final **production bucket**, making the data live.
 
 ```mermaid
+---
+config:
+  layout: elk
+  theme: mc
+  look: classic
+---
+
 flowchart TD
-    subgraph "Developer's Machine"
-        A[datamanager prepare] -->|1. Upload (GBs)| B[Staging R2 Bucket];
-        A -->|2. Commit manifest change| C[New Git Branch];
-        C -->|3. Push Branch| D[GitHub];
-    end
+ subgraph Developer_Machine["Developer_Machine"]
+        B["Staging R2 Bucket"]
+        A["datamanager prepare"]
+        C["New Git Branch"]
+        D["GitHub"]
+  end
+ subgraph GitHub["GitHub"]
+        E["Open Pull Request"]
+        F["main branch"]
+        G["Publish Workflow"]
+  end
+ subgraph Cloudflare_R2["Cloudflare_R2"]
+        H["Production R2 Bucket"]
+  end
+    A -- Upload GBs --> B
+    A -- Commit manifest change --> C
+    C -- Push Branch --> D
+    D --> E
+    E -- Review & Merge --> F
+    F -- Triggers --> G
+    G -- "Server-Side Copy" --> B
+    B -- "...to" --> H
+    G -- Finalize manifest --> F
 
-    subgraph "GitHub"
-        D --> E[4. Open Pull Request];
-        E -->|5. Review & Merge| F[main branch];
-        F -->|6. Triggers| G[Publish Workflow];
-    end
-
-    subgraph "Cloudflare R2"
-        B;
-        H[Production R2 Bucket];
-    end
-
-    G -->|7. Server-Side Copy| B;
-    B -->|...to| H;
-    G -->|8. Finalize manifest| F;
 ```
 
 ## Features
@@ -138,7 +149,7 @@ After running `prepare`, follow the on-screen instructions:
 3. `git push`
 4. Open a Pull Request in GitHub.
 
-<!-- TODO: Add a new screenshot for the 'prepare' command -->
+![prepare](https://i.fluffy.cc/980D8BjQtFbX69vvS6G23QtXt1FMWhc1.png)
 
 #### `list-datasets`
 
