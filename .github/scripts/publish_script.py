@@ -1,6 +1,7 @@
 import os
 import json
 import subprocess
+from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
@@ -63,7 +64,7 @@ for dataset in manifest_data:
                 )
                 print(f"  Description: {commit_subject}")
                 try:
-                    copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
+                    copy_source: Any = {"Bucket": STAGING_BUCKET, "Key": staging_key}
                     client.copy_object(
                         CopySource=copy_source, Bucket=PROD_BUCKET, Key=final_key
                     )
