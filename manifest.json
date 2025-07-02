@@ -29,8 +29,16 @@
   },
   {
     "fileName": "test_database.sqlite",
-    "latestVersion": "v8",
+    "latestVersion": "v9",
     "history": [
+      {
+        "version": "v9",
+        "timestamp": "2025-07-02T00:43:37.774115Z",
+        "sha256": "110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84",
+        "r2_object_key": "test_database/v3-110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84.sqlite",
+        "diffFromPrevious": null,
+        "commit": "pending-merge"
+      },
       {
         "version": "v8",
         "timestamp": "2025-07-01T21:17:52.143687Z",
