@@ -8,10 +8,9 @@
         "timestamp": "2025-07-02T14:27:23.659672Z",
         "sha256": "a55bb96070652d1f16b5eab951b3dd5b90dcae63372b6403ab8e1bcafb6b679c",
         "r2_object_key": "test_database/v1-a55bb96070652d1f16b5eab951b3dd5b90dcae63372b6403ab8e1bcafb6b679c.sqlite",
-        "staging_key": "staging-uploads/a55bb96070652d1f16b5eab951b3dd5b90dcae63372b6403ab8e1bcafb6b679c.sqlite",
         "diffFromPrevious": null,
-        "commit": "pending-merge",
-        "description": "pending-merge"
+        "commit": "2a20e53",
+        "description": "testing creating dataset with ci strategy"
       }
     ]
   }
