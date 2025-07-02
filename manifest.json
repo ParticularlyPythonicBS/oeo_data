@@ -8,10 +8,9 @@
         "timestamp": "2025-07-02T14:41:03.917528Z",
         "sha256": "722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36",
         "r2_object_key": "test_database/v2-722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36.sqlite",
-        "staging_key": "staging-uploads/722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36.sqlite",
         "diffFromPrevious": "diffs/test_database.sqlite/diff-v1-to-v2.diff",
-        "commit": "pending-merge",
-        "description": "pending-merge"
+        "commit": "1e340a0",
+        "description": "testing updating dataset through ci strategy"
       },
       {
         "version": "v1",
