@@ -58,7 +58,9 @@ for dataset in manifest_data:
             if "staging_key" in entry and entry["staging_key"]:
                 staging_key = entry.pop("staging_key")
                 final_key = entry["r2_object_key"]
-                print(f"Publishing: {dataset['fileName']} v{entry['version']}")
+                print(
+                    f"Publishing: {dataset['fileName']} v{entry['version'].lstrip('v')}"
+                )
                 print(f"  Description: {commit_subject}")
                 try:
                     copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
@@ -72,7 +74,9 @@ for dataset in manifest_data:
                     print(f"  ❌ ERROR: Could not process object. Reason: {e}")
                     exit(1)
             else:
-                print(f"Finalizing rollback: {dataset['fileName']} v{entry['version']}")
+                print(
+                    f"Finalizing rollback: {dataset['fileName']} v{entry['version'].lstrip('v')}"
+                )
                 print(f"  Description: {entry['description']}")
 
             dataset["history"][i] = entry
