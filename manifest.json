@@ -37,7 +37,8 @@
         "sha256": "110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84",
         "r2_object_key": "test_database/v3-110f4022e4e5cbec3fddffef452256bfde5135d9489748a643b355ac54312f84.sqlite",
         "diffFromPrevious": null,
-        "commit": "pending-merge"
+        "commit": "fbde628",
+        "description": "revert: Roll back test_database.sqlite to v3"
       },
       {
         "version": "v8",
