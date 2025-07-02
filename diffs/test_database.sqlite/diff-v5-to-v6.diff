@@ -1,9 +1,0 @@
---- /tmp/tmpqjqic6mv/old.sql	2025-07-01 16:22:53.563933339 -0400
-+++ /tmp/tmpqjqic6mv/new.sql	2025-07-01 16:22:53.565933351 -0400
-@@ -2,5 +2,5 @@
- BEGIN TRANSACTION;
- CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
- INSERT INTO users VALUES(1,'Alicia');
--INSERT INTO users VALUES(2,'Delta');
-+INSERT INTO users VALUES(2,'Bob');
- COMMIT;
