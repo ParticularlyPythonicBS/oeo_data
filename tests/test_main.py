@@ -1,129 +1,76 @@
-# tests/test_main.py
 import os
-import subprocess
 from pathlib import Path
-from typing import Any
 
 from pytest_mock import MockerFixture
-
-
 from typer.testing import CliRunner
 
+from datamanager import __main__ as main_app
 from datamanager.__main__ import app
 from datamanager import manifest
 
 runner = CliRunner()
 
-# Keep a reference to the original function to call it for non-mocked commands
-original_subprocess_run = subprocess.run
 
-
-def selective_mock_subprocess_run(
-    *args: Any, **kwargs: Any
-) -> subprocess.CompletedProcess[bytes] | Any:
-    """
-    A side_effect for mocking subprocess.run.
-    It mocks 'git push' but lets all other commands pass through to the original.
-    """
-    command = args[0]
-    if command and command[0] == "git" and command[1] == "push":
-        # For 'git push', return a successful dummy process instead of calling it
-        return subprocess.CompletedProcess(
-            args=command, returncode=0, stdout=b"", stderr=b""
-        )
-    # For all other commands, call the original function
-    return original_subprocess_run(*args, **kwargs)
-
-
-def test_update_success(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test the full, successful update workflow."""
+def test_prepare_for_create_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the 'prepare' command for a brand-new dataset."""
     os.chdir(test_repo)
+    new_file = test_repo / "new_dataset.sqlite"
+    new_file.touch()
 
-    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    mocker.patch("datamanager.core.get_r2_client")
+    mock_upload = mocker.patch("datamanager.core.upload_to_staging")
 
-    mock_r2_client.head_object.return_value = {"ContentLength": 12345}
-
-    mock_prompt = mocker.patch("questionary.text").return_value
-    mock_prompt.ask.return_value = "feat: Update core dataset"
-    # FIX: Use the selective mock that only intercepts 'git push'
-    mocker.patch("subprocess.run", side_effect=selective_mock_subprocess_run)
-
-    result = runner.invoke(app, ["update", "core-dataset.sqlite", "new_data.sqlite"])
+    result = runner.invoke(app, ["prepare", "new-dataset.sqlite", str(new_file)])
 
     assert result.exit_code == 0, result.stdout
-    assert "🎉 Update complete and pushed successfully!" in result.stdout
-    mock_r2_client.upload_file.assert_called_once()
+    assert "New dataset detected! Preparing version: v1" in result.stdout
+    assert "Preparation complete!" in result.stdout
+
+    mock_upload.assert_called_once()
+
+    # Verify the manifest was updated correctly
+    final_manifest = manifest.read_manifest()
+    new_dataset = next(
+        (ds for ds in final_manifest if ds["fileName"] == "new-dataset.sqlite"), None
+    )
+    assert new_dataset is not None
+    assert new_dataset["latestVersion"] == "v1"
+    history_entry = new_dataset["history"][0]
+    assert "staging_key" in history_entry
+    assert history_entry["commit"] == "pending-merge"
 
 
-def test_update_failure_and_rollback(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test that a failure during R2 upload triggers a full rollback."""
+def test_prepare_for_update_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the 'prepare' command for an existing dataset."""
     os.chdir(test_repo)
 
-    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    mocker.patch("datamanager.core.get_r2_client")
+    mock_upload = mocker.patch("datamanager.core.upload_to_staging")
 
-    mock_r2_client.head_object.return_value = {"ContentLength": 12345}
+    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", "new_data.sqlite"])
 
-    mock_r2_client.upload_file.side_effect = Exception("R2 Connection Error")
-    mock_prompt = mocker.patch("questionary.text").return_value
-    mock_prompt.ask.return_value = "A failed update"
+    assert result.exit_code == 0, result.stdout
+    assert "Change detected! Preparing new version: v2" in result.stdout
 
-    initial_commit_hash = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], text=True
-    ).strip()
-    with open("manifest.json") as f:
-        initial_manifest_content = f.read()
+    mock_upload.assert_called_once()
 
-    result = runner.invoke(app, ["update", "core-dataset.sqlite", "new_data.sqlite"])
-
-    assert result.exit_code != 0, result.stdout
-    assert "Rolling back changes..." in result.stdout
-
-    mock_r2_client.delete_object.assert_called_once()
-    final_commit_hash = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], text=True
-    ).strip()
-    assert initial_commit_hash == final_commit_hash
-
-    with open("manifest.json") as f:
-        final_manifest_content = f.read()
-    assert initial_manifest_content == final_manifest_content
+    core_dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert core_dataset is not None
+    assert len(core_dataset["history"]) == 2  # Now has v1 and v2
+    assert core_dataset["history"][0]["version"] == "v2"
+    assert "staging_key" in core_dataset["history"][0]
 
 
-def test_update_no_changes(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test the command when the file hash is identical."""
+def test_prepare_no_changes(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test 'prepare' when the file hash is identical to the latest version."""
     os.chdir(test_repo)
-    mocker.patch("datamanager.core.get_r2_client").return_value
+    mock_upload = mocker.patch("datamanager.core.upload_to_staging")
 
-    # This test will now pass because the 'old_data.sqlite' file is a valid DB,
-    # so the diffing logic doesn't crash the application.
-    result = runner.invoke(app, ["update", "core-dataset.sqlite", "old_data.sqlite"])
+    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", "old_data.sqlite"])
 
     assert result.exit_code == 0, result.stdout
     assert "No changes detected" in result.stdout
-
-
-def test_verify_command_success(mocker: MockerFixture) -> None:
-    """Test the 'verify' command with successful credentials."""
-    mocker.patch(
-        "datamanager.core.verify_r2_access",
-        return_value=(True, "Success message!"),
-    )
-    result = runner.invoke(app, ["verify"])
-    assert result.exit_code == 0
-    assert "✅ Verification successful!" in result.stdout
-    assert "Success message!" in result.stdout
-
-
-def test_verify_command_failure(mocker: MockerFixture) -> None:
-    """Test the 'verify' command with failed credentials."""
-    mocker.patch(
-        "datamanager.core.verify_r2_access",
-        return_value=(False, "Failure message!"),
-    )
-    result = runner.invoke(app, ["verify"])
-    assert result.exit_code == 1
-    assert "❌ Verification failed!" in result.stdout
-    assert "Failure message!" in result.stdout
+    mock_upload.assert_not_called()
 
 
 def test_pull_command_latest_success(test_repo: Path, mocker: MockerFixture) -> None:
@@ -135,11 +82,11 @@ def test_pull_command_latest_success(test_repo: Path, mocker: MockerFixture) -> 
 
     assert result.exit_code == 0
     assert "✅ Success!" in result.stdout
-    # Verify it called the core function with the latest version's info
     mock_pull.assert_called_once()
     call_args = mock_pull.call_args[0]
-    assert "v1-e3b0c442" in call_args[0]  # Check r2_object_key
-    assert call_args[2] == Path("core-dataset.sqlite")  # Check output path
+    # The key in the fixture has a different hash now, check for the version
+    assert "core-dataset/v1-" in call_args[0]
+    assert call_args[2] == Path("core-dataset.sqlite")
 
 
 def test_pull_command_version_not_found(test_repo: Path, mocker: MockerFixture) -> None:
@@ -150,67 +97,137 @@ def test_pull_command_version_not_found(test_repo: Path, mocker: MockerFixture) 
     assert "Could not find version 'v99'" in result.stdout
 
 
-def test_create_success(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test creating a new dataset successfully."""
+def test_verify_command_success(mocker: MockerFixture) -> None:
+    """Test the 'verify' command with successful credentials."""
+    mocker.patch(
+        "datamanager.core.verify_r2_access",
+        return_value=(True, "Success message!"),
+    )
+    result = runner.invoke(app, ["verify"])
+    assert result.exit_code == 0
+    assert "✅ Verification successful!" in result.stdout
+
+
+def test_verify_command_failure(mocker: MockerFixture) -> None:
+    """Test the 'verify' command with failed credentials."""
+    mocker.patch(
+        "datamanager.core.verify_r2_access",
+        return_value=(False, "Failure message!"),
+    )
+    result = runner.invoke(app, ["verify"])
+    assert result.exit_code == 1
+    assert "❌ Verification failed!" in result.stdout
+
+
+def test_prepare_interactive_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the full interactive 'prepare' flow."""
     os.chdir(test_repo)
     new_file = test_repo / "new_dataset.sqlite"
     new_file.touch()
 
-    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
-    mock_prompt = mocker.patch("questionary.text").return_value
-    mock_prompt.ask.return_value = "feat: Add new dataset"
-    mocker.patch("subprocess.run", side_effect=selective_mock_subprocess_run)
+    mock_run_logic = mocker.patch("datamanager.__main__._run_prepare_logic")
 
-    result = runner.invoke(app, ["create", "new-dataset.sqlite", str(new_file)])
+    mocker.patch(
+        "questionary.path",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value=str(new_file))),
+    )
+    mocker.patch(
+        "questionary.text",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value="new-dataset.sqlite")),
+    )
+    mocker.patch(
+        "questionary.confirm",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value=True)),
+    )
 
-    assert result.exit_code == 0, result.stdout
-    assert "🎉 New dataset created and pushed successfully!" in result.stdout
+    # Create a simple mock context instead of a real one.
+    # We only need it to have an `obj` attribute.
+    mock_ctx = mocker.MagicMock()
+    mock_ctx.obj = {}  # Simulate an empty context object
 
-    # Verify R2 upload was called with a v1 key
-    mock_r2_client.upload_file.assert_called_once()
-    r2_key = mock_r2_client.upload_file.call_args[0][2]
-    assert "new-dataset/v1-" in r2_key
+    # Call the private method directly from the imported module
+    main_app._prepare_interactive(mock_ctx)
 
-    # Verify the manifest was updated
-    final_manifest = manifest.read_manifest()
-    assert len(final_manifest) == 2
-    assert final_manifest[1]["fileName"] == "new-dataset.sqlite"
-    assert final_manifest[1]["latestVersion"] == "v1"
+    mock_run_logic.assert_called_once_with(
+        mock_ctx, name="new-dataset.sqlite", file=new_file
+    )
 
 
-def test_create_failure_already_exists(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test that 'create' fails if the dataset name already exists."""
+def test_prepare_interactive_cancel(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test cancelling the interactive 'prepare' flow."""
     os.chdir(test_repo)
-    new_file = test_repo / "another.sqlite"
-    new_file.touch()
+    mock_run_logic = mocker.patch("datamanager.__main__._run_prepare_logic")
 
-    result = runner.invoke(app, ["create", "core-dataset.sqlite", str(new_file)])
+    mocker.patch(
+        "questionary.path",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value=None)),
+    )
 
-    assert result.exit_code == 1
-    assert "already exists" in result.stdout
+    mock_ctx = mocker.MagicMock()
+    mock_ctx.obj = {}
+
+    main_app._prepare_interactive(mock_ctx)
+
+    mock_run_logic.assert_not_called()
 
 
-def test_create_failure_and_rollback(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test that 'create' rolls back correctly on R2 upload failure."""
+def test_pull_command_with_output_dir(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the 'pull' command with the -o flag pointing to a directory."""
     os.chdir(test_repo)
-    new_file = test_repo / "new_dataset.sqlite"
-    new_file.touch()
+    mock_pull = mocker.patch("datamanager.core.pull_and_verify", return_value=True)
 
-    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
-    mock_r2_client.upload_file.side_effect = Exception("R2 Connection Error")
-    mock_prompt = mocker.patch("questionary.text").return_value
-    mock_prompt.ask.return_value = "A failed create"
+    output_dir = test_repo / "downloads"
+    output_dir.mkdir()
 
-    initial_commit_hash = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], text=True
-    ).strip()
+    result = runner.invoke(app, ["pull", "core-dataset.sqlite", "-o", str(output_dir)])
 
-    result = runner.invoke(app, ["create", "new-dataset.sqlite", str(new_file)])
+    assert result.exit_code == 0
+    mock_pull.assert_called_once()
+    # Verify it constructed the correct final path inside the directory
+    final_path = mock_pull.call_args[0][2]
+    assert final_path == output_dir / "core-dataset.sqlite"
 
-    assert result.exit_code == 1
-    assert "Rolling back changes..." in result.stdout
-    mock_r2_client.delete_object.assert_called_once()
-    final_commit_hash = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], text=True
-    ).strip()
-    assert initial_commit_hash == final_commit_hash
+
+def test_pull_interactive_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the full interactive 'pull' flow."""
+    os.chdir(test_repo)
+    mock_run_logic = mocker.patch("datamanager.__main__._run_pull_logic")
+
+    # Simulate a user answering all prompts successfully
+    mocker.patch(
+        "questionary.select",
+        side_effect=[
+            mocker.Mock(ask=mocker.Mock(return_value="core-dataset.sqlite")),
+            mocker.Mock(ask=mocker.Mock(return_value="v1 (commit: f4b8e7a, ...)")),
+        ],
+    )
+    mocker.patch(
+        "questionary.path",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value="./pulled-file.sqlite")),
+    )
+
+    mock_ctx = mocker.MagicMock()
+    mock_ctx.obj = {}
+    main_app._pull_interactive(mock_ctx)
+
+    # Verify the core logic was called with the user's answers
+    mock_run_logic.assert_called_once_with(
+        name="core-dataset.sqlite",
+        version="v1",
+        output=Path("./pulled-file.sqlite"),
+    )
+
+
+def test_pull_interactive_no_datasets(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test the interactive pull flow when the manifest is empty."""
+    os.chdir(test_repo)
+    # Mock the manifest read to return an empty list
+    mocker.patch("datamanager.manifest.read_manifest", return_value=[])
+    mock_select = mocker.patch("questionary.select")
+
+    mock_ctx = mocker.MagicMock()
+    mock_ctx.obj = {}
+    main_app._pull_interactive(mock_ctx)
+
+    # Verify that no prompts were shown because there were no datasets
+    mock_select.assert_not_called()

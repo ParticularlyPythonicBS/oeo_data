@@ -1,6 +1,8 @@
 # tests/test_manifest.py
 import os
 from pathlib import Path
+import json
+import pytest
 
 from datamanager import manifest
 
@@ -11,6 +13,18 @@ def test_read_manifest(test_repo: Path) -> None:
     data = manifest.read_manifest()
     assert len(data) == 1
     assert data[0]["fileName"] == "core-dataset.sqlite"
+
+
+def test_read_manifest_corrupted_json(test_repo: Path) -> None:
+    """Test that read_manifest raises an error for a corrupted JSON file."""
+    os.chdir(test_repo)
+    # Overwrite the manifest with invalid JSON
+    with open(manifest.MANIFEST_PATH, "w") as f:
+        f.write("{ not_valid_json: ")
+
+    # Assert that the expected error is raised
+    with pytest.raises(json.JSONDecodeError):
+        manifest.read_manifest()
 
 
 def test_get_dataset(test_repo: Path) -> None:

@@ -1,8 +1,10 @@
 # tests/test_core.py
 import sqlite3
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 from pytest_mock import MockerFixture
+import pytest
 
 from botocore.exceptions import ClientError
 
@@ -99,3 +101,44 @@ def test_verify_r2_access_access_denied(mocker: MockerFixture) -> None:
 
     assert success is False
     assert "Access Denied" in message
+
+
+def test_pull_and_verify_hash_mismatch(mocker: MockerFixture, tmp_path: Path) -> None:
+    """Test that a corrupted download is deleted after a failed integrity check."""
+    # Mock the download to succeed
+    mocker.patch("datamanager.core.get_r2_client")
+    mock_download = mocker.patch("datamanager.core.download_from_r2")
+    # Mock os.remove to verify it gets called
+    mock_remove = mocker.patch("os.remove")
+
+    output_file = tmp_path / "corrupted.sqlite"
+    output_file.touch()  # Create a dummy file to be "removed"
+
+    # Run the function with mismatching hashes
+    success = core.pull_and_verify(
+        object_key="some/key",
+        expected_hash="hash_A",
+        output_path=output_file,
+    )
+
+    assert success is False
+    mock_download.assert_called_once()
+    # Verify that the cleanup logic was triggered
+    mock_remove.assert_called_once_with(output_file)
+
+
+def test_download_from_r2_failure(mocker: MockerFixture, tmp_path: Path) -> None:
+    """Test that download_from_r2 handles a ClientError gracefully."""
+    mock_client = mocker.MagicMock()
+    mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
+
+    # Simulate boto3 raising an error during download
+    error_response: Any = {"Error": {"Code": "404", "Message": "Not Found"}}
+    mock_client.head_object.side_effect = ClientError(error_response, "HeadObject")
+
+    output_file = tmp_path / "test.sqlite"
+
+    # Assert that the function raises the expected exception,
+    # which our CLI logic is designed to catch.
+    with pytest.raises(ClientError):
+        core.download_from_r2(mock_client, "non-existent-key", output_file)

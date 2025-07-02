@@ -1,52 +1,48 @@
-# OEO Data management
+# OEO Data Management
 
-This repository provides a command-line tool (datamanager) to manage large, versioned datasets (like SQLite files) using Git for metadata and Cloudflare R2 for object storage.
+This repository provides a command-line tool (`datamanager`) to manage large, versioned datasets (like SQLite files) using Git for metadata and Cloudflare R2 for object storage.
 
-This approach avoids the pitfalls of storing large binary files directly in Git (or the costs associated with Git LFS) while still providing a robust, auditable version history for your data assets.
+This approach avoids the pitfalls of storing large binary files directly in Git while still providing a robust, auditable version history for your data assets through a secure, CI/CD-driven workflow.
 
 ## The Core Concept
 
-The system works by treating your Git repository as a source of truth for *metadata*, not for the data itself. Large data files are stored in a cost-effective object store (Cloudflare R2), which has the major benefit of zero egress fees for open data projects.
+The system works by treating your Git repository as a source of truth for *metadata*. The final publication of data is handled by a trusted, automated GitHub Actions workflow after a Pull Request has been reviewed and merged.
 
-The workflow is as follows:
+This two-phase process ensures security and consistency:
+
+1. **Prepare Phase (Local):** A developer prepares a new data version. The large file is uploaded to a temporary **staging bucket**, and a change to `manifest.json` is proposed.
+2. **Publish Phase (Automated):** After the proposal is approved and merged into the `main` branch, a GitHub Action performs a secure, server-side copy from the staging bucket to the final **production bucket**, making the data live.
 
 ```mermaid
----
-config:
-  layout: elk
-  theme: mc
-  look: classic
----
 flowchart TD
- subgraph subGraph0["Local Machine / CI Runner"]
-        B{"datamanager CLI"}
-        A["Developer"]
-        C["Git Repo"]
-        D["manifest.json"]
-        E[".diff files"]
-  end
- subgraph Cloud["Cloud"]
-        F["Remote Git Repo"]
-        G["Cloudflare R2 Bucket"]
-  end
-    A --> B
-    B --> C
-    C --> D & E
-    B -- "Uploads new .sqlite db" --> G
-    B -- Calculates hash & diff --> C
-    C -- git push --> F
+    subgraph "Developer's Machine"
+        A[datamanager prepare] -->|1. Upload (GBs)| B[Staging R2 Bucket];
+        A -->|2. Commit manifest change| C[New Git Branch];
+        C -->|3. Push Branch| D[GitHub];
+    end
 
+    subgraph "GitHub"
+        D --> E[4. Open Pull Request];
+        E -->|5. Review & Merge| F[main branch];
+        F -->|6. Triggers| G[Publish Workflow];
+    end
+
+    subgraph "Cloudflare R2"
+        B;
+        H[Production R2 Bucket];
+    end
+
+    G -->|7. Server-Side Copy| B;
+    B -->|...to| H;
+    G -->|8. Finalize manifest| F;
 ```
-
-The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dataset versions to specific, immutable objects in R2, complete with integrity hashes.
 
 ## Features
 
-- **Transactional Operations:** Updates and creations are transactional. If an R2 upload or `git push` fails, the operation is automatically rolled back to prevent inconsistent states.
+- **CI/CD-Driven Publishing:** Data publication is transactional and automated via GitHub Actions after a pull request is merged, preventing inconsistent states.
+- **Enhanced Security:** Production credentials are never stored on developer machines; they are only used by the trusted GitHub Actions runner.
 - **Interactive TUI:** Run `datamanager` with no arguments for a user-friendly, menu-driven interface.
-- **CLI for Automation:** A full suite of commands for scripting and CI/CD integration.
 - **Integrity Verification:** All downloaded files are automatically checked against their SHA256 hash from the manifest.
-- **Small SQL Diffs:** For small changes, human-readable `.diff` files are stored directly in Git for quick review.
 - **Credential Verification:** A simple `verify` command to check your R2 configuration.
 
 ## Prerequisites
@@ -54,8 +50,8 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
 - Python 3.12+
 - Git
 - `sqlite3` command-line tool
-- An active Cloudflare account with an R2 bucket.
-  - For the data in this repo, contact the OEO team for access to the R2 bucket.
+- An active Cloudflare account with **two** R2 buckets (one for production, one for staging).
+- For the data in this repo, contact the OEO team for access to the R2 buckets.
 
 ## ⚙️ Setup and Installation
 
@@ -70,7 +66,9 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
     This project uses and recommends `uv` for fast and reliable dependency management.
 
     ```bash
-    uv sync
+    # Create a virtual environment and install dependencies
+    uv venv
+    source .venv/bin/activate
     uv pip install -e .
     ```
 
@@ -80,7 +78,7 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
     The tool is configured using a `.env` file. Create one by copying the example:
 
     ```bash
-    cp env.example .env
+    cp .env.example .env
     ```
 
     Now, edit the `.env` file with your Cloudflare R2 credentials. **This file should be in your `.gitignore` and never committed to the repository.**
@@ -92,7 +90,8 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
     R2_ACCOUNT_ID="your_cloudflare_account_id"
     R2_ACCESS_KEY_ID="your_r2_access_key"
     R2_SECRET_ACCESS_KEY="your_r2_secret_key"
-    R2_BUCKET="your-r2-bucket-name"
+    R2_BUCKET="your-production-bucket-name"
+    R2_STAGING_BUCKET="your-staging-bucket-name"
     ```
 
 4. **Verify Configuration:**
@@ -102,9 +101,11 @@ The `manifest.json` file in the Git repo acts as a "pointer" system, mapping dat
     uv run datamanager verify
     ```
 
-   ![Verify Output](https://github.com/user-attachments/assets/f208e8a1-b70a-4cf7-a9ad-2e3a96a83265)
+    ![Verify Output](https://github.com/user-attachments/assets/f208e8a1-b70a-4cf7-a9ad-2e3a96a83265)
 
 ## 🚀 Usage
+
+The primary workflow is now to **prepare** a dataset, then use standard Git practices to propose the change.
 
 ### Interactive TUI
 
@@ -114,11 +115,54 @@ For a guided experience, simply run the command with no arguments:
 uv run datamanager
 ```
 
-This will launch a menu where you can choose your desired action.
+This will launch a menu where you can choose your desired action, including the new "Prepare a dataset for release" option.
 
 ![TUI](https://github.com/user-attachments/assets/425572b3-9185-4889-ace7-ea882dcd9af5)
 
 ### Command-Line Interface (CLI)
+
+#### `prepare`
+
+Prepares a dataset for release by uploading it to the staging area and updating the manifest locally. This command intelligently handles both creating new datasets and updating existing ones.
+
+**This is the first step of the new workflow.**
+
+```bash
+uv run datamanager prepare <dataset-name.sqlite> <path/to/local/file.sqlite>
+```
+
+After running `prepare`, follow the on-screen instructions:
+
+1. `git add manifest.json`
+2. `git commit -m "Your descriptive message"`
+3. `git push`
+4. Open a Pull Request in GitHub.
+
+<!-- TODO: Add a new screenshot for the 'prepare' command -->
+
+#### `list-datasets`
+
+Lists all datasets currently tracked in `manifest.json`.
+
+```bash
+uv run datamanager list-datasets
+```
+
+![list_datasets](https://github.com/user-attachments/assets/c641a330-99a4-463a-a877-6698996edb27)
+
+#### `pull`
+
+Downloads a dataset from the **production** R2 bucket and verifies its integrity.
+
+```bash
+# Pull the latest version
+uv run datamanager pull user-profiles.sqlite
+
+# Pull a specific version
+uv run datamanager pull user-profiles.sqlite --version v2
+```
+
+![pulling](https://github.com/user-attachments/assets/275aae67-7bf3-47c2-90a4-db41cdc7e232)
 
 #### `verify`
 
@@ -128,67 +172,19 @@ Checks R2 credentials and bucket access.
 uv run datamanager verify
 ```
 
-#### `list-datasets`
-
-Lists all datasets currently tracked in `manifest.json`.
-
-```bash
-uv run datamanager list-datasets
-
-```
-
-![list_datasets](https://github.com/user-attachments/assets/c641a330-99a4-463a-a877-6698996edb27)
-
-#### `create`
-
-Adds a new dataset to be tracked.
-
-```bash
-uv run datamanager create <dataset-name.sqlite> <path/to/local/file.sqlite>
-```
-
-![adding database](https://github.com/user-attachments/assets/f43b991a-1ece-401b-956d-66c801705601)
-
-#### `update`
-
-Creates a new version of an existing dataset.
-
-```bash
-uv run datamanager update <dataset-name.sqlite> <path/to/new/file.sqlite>
-```
-
-![updating databases](https://github.com/user-attachments/assets/330a667d-74f8-41d9-b26d-3c7de53dd873)
-
-#### `pull`
-
-Downloads a dataset from R2 and verifies its integrity.
-
-```bash
-# Pull the latest version
-uv run datamanager pull user-profiles.sqlite
-
-# Pull a specific version
-uv run datamanager pull user-profiles.sqlite --version v2
-
-# Pull and save to a different path/name
-uv run datamanager pull user-profiles.sqlite -o ./downloads/users_v2.sqlite
-```
-
-![pulling](https://github.com/user-attachments/assets/275aae67-7bf3-47c2-90a4-db41cdc7e232)
-
 ## 🧑‍💻 Development and Testing
 
 To contribute to the tool's development:
 
-1. Install development dependencies (if any are added to `pyproject.toml`).
+1. Install development dependencies using `uv pip install -e .[dev]`.
 2. Run the test suite using `pytest`:
 
     ```bash
     uv run pytest
     ```
 
-3. For code quality checks, run:
+3. For code quality checks, run `pre-commit`:
 
     ```bash
-    uv pre-commit run --all-files
+    uv run pre-commit run --all-files
     ```
