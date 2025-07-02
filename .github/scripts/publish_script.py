@@ -27,12 +27,13 @@ with open(MANIFEST_FILE, "r") as f:
 
 needs_update = False
 for dataset in manifest_data:
-    # Check the entire history for a staged entry, not just the latest
     for i, entry in enumerate(dataset["history"]):
-        if "staging_key" in entry and entry["staging_key"]:
+        # Find the entry that was just merged
+        if entry.get("commit") == "pending-merge":
             needs_update = True
-            staging_key = entry.pop("staging_key")  # Remove the key
-            final_key = entry["r2_object_key"]
+
+            # --- Get commit details from Git ---
+            # Get the hash of the merge commit
             commit_hash = (
                 subprocess.check_output(
                     ["git", "log", "-1", "--pretty=%h", "--", MANIFEST_FILE]
@@ -40,30 +41,48 @@ for dataset in manifest_data:
                 .decode()
                 .strip()
             )
-            entry["commit"] = commit_hash
-            dataset["history"][i] = entry  # Update the entry in the list
-
-            print(f"Publishing: {dataset['fileName']} v{entry['version']}")
-            try:
-                copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
-                client.copy_object(
-                    CopySource=copy_source, Bucket=PROD_BUCKET, Key=final_key
+            # Get the subject line (title) of the merge commit
+            commit_subject = (
+                subprocess.check_output(
+                    ["git", "log", "-1", "--pretty=%s", "--", MANIFEST_FILE]
                 )
-                print("  ✅ Server-side copy successful.")
-                client.delete_object(Bucket=STAGING_BUCKET, Key=staging_key)
-                print("  ✅ Staging object deleted.")
-                # Break the inner loop after processing one entry
-                break
-            except ClientError as e:
-                print(f"  ❌ ERROR: Could not process object. Reason: {e}")
-                exit(1)
+                .decode()
+                .strip()
+            )
 
-    # Break the outer loop as well to ensure only one dataset is processed per run
+            entry["commit"] = commit_hash
+            entry["description"] = commit_subject  # Set the description
+            # --- End of Git details ---
+
+            # If it was a staged file, process it. Otherwise, it was a rollback.
+            if "staging_key" in entry and entry["staging_key"]:
+                staging_key = entry.pop("staging_key")
+                final_key = entry["r2_object_key"]
+                print(f"Publishing: {dataset['fileName']} v{entry['version']}")
+                print(f"  Description: {commit_subject}")
+                try:
+                    copy_source = {"Bucket": STAGING_BUCKET, "Key": staging_key}
+                    client.copy_object(
+                        CopySource=copy_source, Bucket=PROD_BUCKET, Key=final_key
+                    )
+                    print("  ✅ Server-side copy successful.")
+                    client.delete_object(Bucket=STAGING_BUCKET, Key=staging_key)
+                    print("  ✅ Staging object deleted.")
+                except ClientError as e:
+                    print(f"  ❌ ERROR: Could not process object. Reason: {e}")
+                    exit(1)
+            else:
+                print(f"Finalizing rollback: {dataset['fileName']} v{entry['version']}")
+                print(f"  Description: {entry['description']}")
+
+            dataset["history"][i] = entry
+            break  # Process one entry per dataset per run
+
     if needs_update:
-        break
+        break  # Process one dataset per run
 
 if needs_update:
-    print("\nFinalizing manifest file with new commit hash...")
+    print("\nFinalizing manifest file with new commit details...")
     with open(MANIFEST_FILE, "w") as f:
         json.dump(manifest_data, f, indent=2, ensure_ascii=False)
         f.write("\n")  # Add a trailing newline for linters

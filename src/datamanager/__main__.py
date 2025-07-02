@@ -282,6 +282,7 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
             if diff_git_path
             else None,  # Add path to entry
             "commit": "pending-merge",
+            "description": "pending-merge",
         }
         manifest.add_history_entry(name, new_entry)
 
@@ -301,6 +302,7 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
                     "staging_key": staging_key,
                     "diffFromPrevious": None,  # Explicitly None for new datasets
                     "commit": "pending-merge",
+                    "description": "pending-merge",
                 }
             ],
         }
@@ -412,6 +414,7 @@ def _run_rollback_logic(ctx: typer.Context, name: str, to_version: str) -> None:
         "r2_object_key": target_entry["r2_object_key"],
         "diffFromPrevious": None,
         "commit": "pending-merge",
+        "description": f"Rollback to version {target_entry['version']}",
     }
 
     manifest.add_history_entry(name, rollback_entry)
