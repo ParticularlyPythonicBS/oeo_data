@@ -1,6 +1,7 @@
 # datamanager/__main__.py
 import subprocess
 from datetime import datetime, timezone
+import tempfile
 from dateutil.parser import isoparse
 from pathlib import Path
 
@@ -228,8 +229,9 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
 
     new_hash = core.hash_file(file)
     dataset = manifest.get_dataset(name)
+    client = core.get_r2_client()  # Moved up to be available for diffing
 
-    # Perform the "no changes" check before doing any uploads.
+    # Check for changes BEFORE doing any uploads.
     if dataset:
         latest_version = dataset["history"][0]
         if new_hash == latest_version["sha256"]:
@@ -237,7 +239,6 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
             return
 
     # If we've reached this point, an upload is necessary.
-    client = core.get_r2_client()
     staging_key = f"staging-uploads/{new_hash}.sqlite"
     core.upload_to_staging(client, file, staging_key)
 
@@ -252,37 +253,53 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
 
         console.print(f"Change detected! Preparing new version: {new_version}")
 
+        console.print("Downloading previous version to generate diff...")
+        diff_git_path: Optional[Path] = None
+        with tempfile.TemporaryDirectory() as tempdir:
+            old_path = Path(tempdir) / "prev.sqlite"
+            # Download from the PRODUCTION bucket
+            core.download_from_r2(client, latest_version["r2_object_key"], old_path)
+            diff_text = core.generate_sql_diff(old_path, file)
+
+        if diff_text.count("\n") <= settings.max_diff_lines:
+            diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
+            # Store diffs in a dedicated top-level directory
+            diff_git_path = Path("diffs") / name / diff_filename
+            diff_git_path.parent.mkdir(parents=True, exist_ok=True)
+            diff_git_path.write_text(diff_text)
+            subprocess.run(["git", "add", str(diff_git_path)])
+            console.print(f"📝  Diff stored in Git at: [green]{diff_git_path}[/]")
+        else:
+            console.print("📝  Diff is too large – omitted from Git.")
+
         new_entry = {
             "version": new_version,
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "sha256": new_hash,
             "r2_object_key": final_r2_key,
             "staging_key": staging_key,
-            "diffFromPrevious": None,
+            "diffFromPrevious": str(diff_git_path)
+            if diff_git_path
+            else None,  # Add path to entry
             "commit": "pending-merge",
         }
         manifest.add_history_entry(name, new_entry)
 
     else:
-        # --- This is a CREATE ---
-        new_version = "v1"
-        r2_dir = Path(Path(name).stem)
-        final_r2_key = f"{r2_dir}/{new_version}-{new_hash}.sqlite"
-        console.print(f"New dataset detected! Preparing version: {new_version}")
-
+        # --- This is for CREATE
         new_dataset_obj = {
             "fileName": name,
-            "latestVersion": new_version,
+            "latestVersion": "v1",
             "history": [
                 {
-                    "version": new_version,
+                    "version": "v1",
                     "timestamp": datetime.now(timezone.utc)
                     .isoformat()
                     .replace("+00:00", "Z"),
                     "sha256": new_hash,
-                    "r2_object_key": final_r2_key,
+                    "r2_object_key": f"{Path(Path(name).stem)}/v1-{new_hash}.sqlite",
                     "staging_key": staging_key,
-                    "diffFromPrevious": None,
+                    "diffFromPrevious": None,  # Explicitly None for new datasets
                     "commit": "pending-merge",
                 }
             ],
@@ -412,7 +429,6 @@ def _run_rollback_logic(ctx: typer.Context, name: str, to_version: str) -> None:
     )
 
 
-# --- Updated `rollback` command (now a thin wrapper) ---
 @app.command()
 def rollback(
     ctx: typer.Context,
@@ -431,7 +447,6 @@ def rollback(
     _run_rollback_logic(ctx, name, to_version)
 
 
-# --- New Interactive Rollback Function ---
 def _rollback_interactive(ctx: typer.Context) -> None:
     """Guides the user through rolling back a dataset interactively."""
     console.print("\n[bold]Interactive Dataset Rollback[/]")

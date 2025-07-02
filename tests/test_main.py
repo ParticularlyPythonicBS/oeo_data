@@ -7,12 +7,13 @@ from typer.testing import CliRunner
 from datamanager import __main__ as main_app
 from datamanager.__main__ import app
 from datamanager import manifest
+from datamanager.config import settings
 
 runner = CliRunner()
 
 
 def test_prepare_for_create_success(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test the 'prepare' command for a brand-new dataset."""
+    """Test the 'prepare' command for a brand-new dataset (no diff)."""
     os.chdir(test_repo)
     new_file = test_repo / "new_dataset.sqlite"
     new_file.touch()
@@ -23,28 +24,27 @@ def test_prepare_for_create_success(test_repo: Path, mocker: MockerFixture) -> N
     result = runner.invoke(app, ["prepare", "new-dataset.sqlite", str(new_file)])
 
     assert result.exit_code == 0, result.stdout
-    assert "New dataset detected! Preparing version: v1" in result.stdout
     assert "Preparation complete!" in result.stdout
-
     mock_upload.assert_called_once()
 
-    # Verify the manifest was updated correctly
-    final_manifest = manifest.read_manifest()
-    new_dataset = next(
-        (ds for ds in final_manifest if ds["fileName"] == "new-dataset.sqlite"), None
-    )
-    assert new_dataset is not None
-    assert new_dataset["latestVersion"] == "v1"
-    history_entry = new_dataset["history"][0]
-    assert "staging_key" in history_entry
-    assert history_entry["commit"] == "pending-merge"
+    # Verify the manifest entry was created correctly with no diff
+    dataset = manifest.get_dataset("new-dataset.sqlite")
+    assert dataset is not None
+    assert dataset["history"][0]["diffFromPrevious"] is None
+    assert dataset["history"][0]["description"] == "pending-merge"
 
 
-def test_prepare_for_update_success(test_repo: Path, mocker: MockerFixture) -> None:
-    """Test the 'prepare' command for an existing dataset."""
+def test_prepare_for_update_with_small_diff(
+    test_repo: Path, mocker: MockerFixture
+) -> None:
+    """Test an update that generates and stores a small diff."""
     os.chdir(test_repo)
-    mocker.patch("datamanager.core.get_r2_client")
-    mock_upload = mocker.patch("datamanager.core.upload_to_staging")
+    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    # Configure head_object to prevent TypeError in the download progress bar
+    mock_r2_client.head_object.return_value = {"ContentLength": 1024}
+    mocker.patch("datamanager.core.upload_to_staging")
+    mocker.patch("datamanager.core.download_from_r2")
+    mocker.patch("datamanager.core.generate_sql_diff", return_value="--- a\n+++ b")
 
     v3_file = test_repo / "v3_data.sqlite"
     v3_file.write_text("this is v3")
@@ -52,14 +52,40 @@ def test_prepare_for_update_success(test_repo: Path, mocker: MockerFixture) -> N
     result = runner.invoke(app, ["prepare", "core-dataset.sqlite", str(v3_file)])
 
     assert result.exit_code == 0, result.stdout
-    assert "Change detected! Preparing new version: v3" in result.stdout
-    mock_upload.assert_called_once()
+    assert "Diff stored in Git" in result.stdout
 
-    core_dataset = manifest.get_dataset("core-dataset.sqlite")
-    assert core_dataset is not None
-    assert len(core_dataset["history"]) == 3  # Now has v1, v2, and v3
-    assert core_dataset["history"][0]["version"] == "v3"
-    assert "staging_key" in core_dataset["history"][0]
+    expected_diff_path = Path("diffs/core-dataset.sqlite/diff-v2-to-v3.diff")
+    assert expected_diff_path.exists()
+
+    dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert dataset is not None, "Dataset should not be None after preparation."
+    assert dataset["history"][0]["diffFromPrevious"] == str(expected_diff_path)
+
+
+def test_prepare_for_update_with_large_diff(
+    test_repo: Path, mocker: MockerFixture
+) -> None:
+    """Test an update where the diff is too large and is omitted."""
+    os.chdir(test_repo)
+    mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    mock_r2_client.head_object.return_value = {"ContentLength": 1024}
+    mocker.patch("datamanager.core.upload_to_staging")
+    mocker.patch("datamanager.core.download_from_r2")
+    # Make the diff larger than the default MAX_DIFF_LINES
+    large_diff = "line\n" * (settings.max_diff_lines + 1)
+    mocker.patch("datamanager.core.generate_sql_diff", return_value=large_diff)
+
+    v3_file = test_repo / "v3_data.sqlite"
+    v3_file.write_text("this is v3")
+
+    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", str(v3_file)])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Diff is too large" in result.stdout
+
+    dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert dataset is not None, "Dataset should not be None after preparation."
+    assert dataset["history"][0]["diffFromPrevious"] is None
 
 
 def test_prepare_no_changes(test_repo: Path, mocker: MockerFixture) -> None:
@@ -262,6 +288,7 @@ def test_rollback_success(test_repo: Path, mocker: MockerFixture) -> None:
     assert new_v3_entry["sha256"] == original_v1_entry["sha256"]
     assert new_v3_entry["r2_object_key"] == original_v1_entry["r2_object_key"]
     assert new_v3_entry["commit"] == "pending-merge"
+    assert new_v3_entry["description"] == "Rollback to version v1"
 
 
 def test_rollback_no_op(test_repo: Path, mocker: MockerFixture) -> None:
