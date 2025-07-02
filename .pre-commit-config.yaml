@@ -21,6 +21,12 @@ repos:
         args: ["--maxkb=1024"]
       - id: debug-statements
 
+    # upgrade Python syntax to the latest version
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
+    hooks:
+      - id: pyupgrade
+
     # Python Linting & Formatting with Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.1

@@ -22,7 +22,7 @@ client = boto3.client(
     aws_secret_access_key=SECRET_ACCESS_KEY,
 )
 
-with open(MANIFEST_FILE, "r") as f:
+with open(MANIFEST_FILE) as f:
     manifest_data = json.load(f)
 
 needs_update = False
