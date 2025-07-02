@@ -301,7 +301,6 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
     )
 
 
-# --- Updated `prepare` command (now a thin wrapper) ---
 @app.command()
 def prepare(
     ctx: typer.Context,
@@ -353,6 +352,132 @@ def _prepare_interactive(ctx: typer.Context) -> None:
         pass
 
 
+def _run_rollback_logic(ctx: typer.Context, name: str, to_version: str) -> None:
+    """The core logic for rolling back a dataset to a previous version."""
+    console.print(
+        f"⏪ Preparing rollback for [cyan]{name}[/] to version [magenta]{to_version}[/]..."
+    )
+
+    dataset = manifest.get_dataset(name)
+    if not dataset:
+        console.print(f"[red]Error: Dataset '{name}' not found.[/]")
+        raise typer.Exit(1)
+
+    target_entry = manifest.get_version_entry(name, to_version)
+    if not target_entry:
+        console.print(
+            f"[red]Error: Version '{to_version}' not found for dataset '{name}'.[/]"
+        )
+        raise typer.Exit(1)
+
+    latest_version = dataset["history"][0]
+    if latest_version["sha256"] == target_entry["sha256"]:
+        console.print(
+            f"✅ No action needed. The latest version is already identical to '{to_version}'."
+        )
+        return
+
+    new_version_num = int(latest_version["version"].lstrip("v")) + 1
+    new_version = f"v{new_version_num}"
+
+    console.print(
+        f"This will create a new version, [magenta]{new_version}[/], whose contents will be identical to [magenta]{to_version}[/]."
+    )
+    proceed = _ask_confirm(ctx, "Do you want to continue?", default=False)
+    if not proceed:
+        console.print("Rollback cancelled.")
+        return
+
+    rollback_entry = {
+        "version": new_version,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "sha256": target_entry["sha256"],
+        "r2_object_key": target_entry["r2_object_key"],
+        "diffFromPrevious": None,
+        "commit": "pending-merge",
+    }
+
+    manifest.add_history_entry(name, rollback_entry)
+    manifest.update_latest_version(name, new_version)
+
+    console.print(
+        "\n[bold green]✅ Rollback prepared![/] Manifest file has been updated."
+    )
+    console.print(
+        "\nNext steps:\n"
+        f"  1. [cyan]git add {settings.manifest_file}[/]\n"
+        f'  2. [cyan]git commit -m "revert: Roll back {name} to {to_version}"[/]\n'
+        "  3. [cyan]git push[/]\n"
+        "  4. Open a Pull Request to finalize the rollback."
+    )
+
+
+# --- Updated `rollback` command (now a thin wrapper) ---
+@app.command()
+def rollback(
+    ctx: typer.Context,
+    name: str = typer.Argument(
+        ..., help="The logical name of the dataset to roll back."
+    ),
+    to_version: str = typer.Option(
+        ..., "--to-version", "-v", help="The stable version to restore (e.g., 'v2')."
+    ),
+    no_prompt: bool = COMMON_OPTIONS["no_prompt"],
+) -> None:
+    """
+    Rolls back a dataset to a previous stable version by creating a new version entry.
+    """
+    ctx.obj["no_prompt"] = no_prompt or ctx.obj.get("no_prompt")
+    _run_rollback_logic(ctx, name, to_version)
+
+
+# --- New Interactive Rollback Function ---
+def _rollback_interactive(ctx: typer.Context) -> None:
+    """Guides the user through rolling back a dataset interactively."""
+    console.print("\n[bold]Interactive Dataset Rollback[/]")
+
+    all_datasets: list[dict[str, Any]] = manifest.read_manifest()
+    if not all_datasets:
+        console.print("[yellow]No datasets found in the manifest to roll back.[/]")
+        return
+
+    dataset_names = [ds["fileName"] for ds in all_datasets]
+    selected_name = questionary.select(
+        "Which dataset would you like to roll back?", choices=dataset_names
+    ).ask()
+
+    if selected_name is None:
+        console.print("Rollback cancelled.")
+        return
+
+    dataset = manifest.get_dataset(selected_name)
+    if not dataset or len(dataset["history"]) < 2:
+        console.print(
+            f"[yellow]Not enough version history for '{selected_name}' to perform a rollback.[/]"
+        )
+        return
+
+    # Exclude the latest version from the choices, as you can't roll back to it.
+    version_choices = [
+        f"{entry['version']} (commit: {entry['commit']}, {_rel(entry['timestamp'])})"
+        for entry in dataset["history"][1:]  # Start from the second entry
+    ]
+    selected_version_str = questionary.select(
+        "Which version do you want to restore?", choices=version_choices
+    ).ask()
+
+    if selected_version_str is None:
+        console.print("Rollback cancelled.")
+        return
+
+    version_to_restore = selected_version_str.split(" ")[0]
+
+    try:
+        _run_rollback_logic(ctx, name=selected_name, to_version=version_to_restore)
+    except typer.Exit:
+        pass
+
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
     """
@@ -377,6 +502,7 @@ def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> N
         "List all datasets": list_datasets,
         "Prepare a dataset for release": _prepare_interactive,
         "Pull a dataset version": _pull_interactive,
+        "Rollback a dataset to a previous version": _rollback_interactive,
         "Exit": "exit",
     }
 

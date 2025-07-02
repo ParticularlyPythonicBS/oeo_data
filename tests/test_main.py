@@ -43,21 +43,22 @@ def test_prepare_for_create_success(test_repo: Path, mocker: MockerFixture) -> N
 def test_prepare_for_update_success(test_repo: Path, mocker: MockerFixture) -> None:
     """Test the 'prepare' command for an existing dataset."""
     os.chdir(test_repo)
-
     mocker.patch("datamanager.core.get_r2_client")
     mock_upload = mocker.patch("datamanager.core.upload_to_staging")
 
-    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", "new_data.sqlite"])
+    v3_file = test_repo / "v3_data.sqlite"
+    v3_file.write_text("this is v3")
+
+    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", str(v3_file)])
 
     assert result.exit_code == 0, result.stdout
-    assert "Change detected! Preparing new version: v2" in result.stdout
-
+    assert "Change detected! Preparing new version: v3" in result.stdout
     mock_upload.assert_called_once()
 
     core_dataset = manifest.get_dataset("core-dataset.sqlite")
     assert core_dataset is not None
-    assert len(core_dataset["history"]) == 2  # Now has v1 and v2
-    assert core_dataset["history"][0]["version"] == "v2"
+    assert len(core_dataset["history"]) == 3  # Now has v1, v2, and v3
+    assert core_dataset["history"][0]["version"] == "v3"
     assert "staging_key" in core_dataset["history"][0]
 
 
@@ -66,7 +67,7 @@ def test_prepare_no_changes(test_repo: Path, mocker: MockerFixture) -> None:
     os.chdir(test_repo)
     mock_upload = mocker.patch("datamanager.core.upload_to_staging")
 
-    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", "old_data.sqlite"])
+    result = runner.invoke(app, ["prepare", "core-dataset.sqlite", "new_data.sqlite"])
 
     assert result.exit_code == 0, result.stdout
     assert "No changes detected" in result.stdout
@@ -85,7 +86,7 @@ def test_pull_command_latest_success(test_repo: Path, mocker: MockerFixture) -> 
     mock_pull.assert_called_once()
     call_args = mock_pull.call_args[0]
     # The key in the fixture has a different hash now, check for the version
-    assert "core-dataset/v1-" in call_args[0]
+    assert "core-dataset/v2-" in call_args[0]
     assert call_args[2] == Path("core-dataset.sqlite")
 
 
@@ -231,3 +232,87 @@ def test_pull_interactive_no_datasets(test_repo: Path, mocker: MockerFixture) ->
 
     # Verify that no prompts were shown because there were no datasets
     mock_select.assert_not_called()
+
+
+def test_rollback_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test a successful rollback to a previous version."""
+    os.chdir(test_repo)
+    # Mock the confirmation prompt to return 'yes'
+    mocker.patch("datamanager.__main__._ask_confirm", return_value=True)
+
+    # Act: Roll back from v2 (latest) to v1
+    result = runner.invoke(
+        app, ["rollback", "core-dataset.sqlite", "--to-version", "v1"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "✅ Rollback prepared!" in result.stdout
+
+    # Assert: Check the new state of the manifest
+    dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert dataset is not None
+    assert dataset["latestVersion"] == "v3"
+    assert len(dataset["history"]) == 3  # v3, v2, v1
+
+    new_v3_entry = dataset["history"][0]
+    original_v1_entry = dataset["history"][2]
+
+    assert new_v3_entry["version"] == "v3"
+    # The new v3 should have the same content hash and R2 key as the original v1
+    assert new_v3_entry["sha256"] == original_v1_entry["sha256"]
+    assert new_v3_entry["r2_object_key"] == original_v1_entry["r2_object_key"]
+    assert new_v3_entry["commit"] == "pending-merge"
+
+
+def test_rollback_no_op(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test rolling back to the version that is already the latest."""
+    os.chdir(test_repo)
+    # Act: Try to roll back from v2 to v2
+    result = runner.invoke(
+        app, ["rollback", "core-dataset.sqlite", "--to-version", "v2"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "No action needed" in result.stdout
+
+
+def test_rollback_version_not_found(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test rolling back to a version that does not exist."""
+    os.chdir(test_repo)
+    result = runner.invoke(
+        app, ["rollback", "core-dataset.sqlite", "--to-version", "v99"]
+    )
+
+    assert result.exit_code == 1
+    assert "Version 'v99' not found" in result.stdout
+
+
+def test_rollback_dataset_not_found(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test rolling back a dataset that does not exist."""
+    os.chdir(test_repo)
+    result = runner.invoke(
+        app, ["rollback", "non-existent.sqlite", "--to-version", "v1"]
+    )
+
+    assert result.exit_code == 1
+    assert "Dataset 'non-existent.sqlite' not found" in result.stdout
+
+
+def test_rollback_user_cancel(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test that the operation is cancelled if the user says no."""
+    os.chdir(test_repo)
+    # Mock the confirmation prompt to return 'no'
+    mocker.patch("datamanager.__main__._ask_confirm", return_value=False)
+    # Get the original state of the manifest
+    original_manifest = manifest.read_manifest()
+
+    result = runner.invoke(
+        app, ["rollback", "core-dataset.sqlite", "--to-version", "v1"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "Rollback cancelled" in result.stdout
+
+    # Verify the manifest file was not changed
+    final_manifest = manifest.read_manifest()
+    assert final_manifest == original_manifest

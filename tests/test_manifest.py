@@ -32,7 +32,7 @@ def test_get_dataset(test_repo: Path) -> None:
     os.chdir(test_repo)
     dataset = manifest.get_dataset("core-dataset.sqlite")
     assert dataset is not None
-    assert dataset["latestVersion"] == "v1"
+    assert dataset["latestVersion"] == "v2"
 
     non_existent = manifest.get_dataset("non-existent.sqlite")
     assert non_existent is None

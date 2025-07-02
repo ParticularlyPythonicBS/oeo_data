@@ -63,6 +63,16 @@ def write_manifest(data: list[dict[str, Any]]) -> None:
     tmp.replace(MANIFEST_PATH)  # atomic swap
 
 
+def update_latest_version(name: str, new_version: str) -> None:
+    """Updates the top-level 'latestVersion' field for a dataset."""
+    data = read_manifest()
+    for item in data:
+        if item.get("fileName") == name:
+            item["latestVersion"] = new_version
+            break
+    write_manifest(data)
+
+
 def get_dataset(name: str) -> Optional[dict[str, Any]]:
     """
     Finds and returns a single dataset from the manifest by its logical name.

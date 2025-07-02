@@ -11,67 +11,57 @@ import pytest
 # Import the hashing function from the application itself
 from datamanager.core import hash_file
 
-# The initial state of our manifest for testing
-INITIAL_MANIFEST_DATA = [
-    {
-        "fileName": "core-dataset.sqlite",
-        "latestVersion": "v1",
-        "history": [
-            {
-                "version": "v1",
-                "timestamp": "2025-06-30T10:00:00Z",
-                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                "r2_object_key": "core-dataset/v1-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.sqlite",
-                "diffFromPrevious": None,
-                "commit": "f4b8e7a",
-            }
-        ],
-    }
-]
-
 
 @pytest.fixture
 def test_repo(tmp_path: Path) -> Generator[Path, Any, None]:
     """
     Creates a temporary directory initialized as a Git repository,
     with a pre-populated and committed manifest.json and dummy sqlite files.
-    The manifest hash is dynamically generated to match the created file.
+    The manifest has two versions to allow for rollback testing.
     """
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
 
     subprocess.run(["git", "init"], cwd=repo_path, check=True)
 
-    # Create a valid, minimal SQLite DB for the 'old' file.
-    old_db_path = repo_path / "old_data.sqlite"
-    con = sqlite3.connect(old_db_path)
+    # Create a valid v1 database file
+    v1_db_path = repo_path / "old_data.sqlite"
+    con = sqlite3.connect(v1_db_path)
     con.execute("CREATE TABLE data (id INT)")
     con.commit()
     con.close()
+    v1_hash = hash_file(v1_db_path)
 
-    # Create a different 'new' database
-    new_db_path = repo_path / "new_data.sqlite"
-    con = sqlite3.connect(new_db_path)
+    # Create a different v2 database file
+    v2_db_path = repo_path / "new_data.sqlite"
+    con = sqlite3.connect(v2_db_path)
     con.execute("CREATE TABLE data (id INT, value TEXT)")
     con.commit()
     con.close()
+    v2_hash = hash_file(v2_db_path)
 
-    actual_hash = hash_file(old_db_path)
-
-    # Create the manifest data using the REAL hash.
+    # FIX: Build the manifest dynamically with the correct, distinct hashes
     manifest_data = [
         {
             "fileName": "core-dataset.sqlite",
-            "latestVersion": "v1",
+            "latestVersion": "v2",
             "history": [
+                {
+                    "version": "v2",
+                    "timestamp": "2025-07-01T12:00:00Z",
+                    "sha256": v2_hash,
+                    "r2_object_key": f"core-dataset/v2-{v2_hash}.sqlite",
+                    "diffFromPrevious": None,
+                    "commit": "abcdef1",
+                },
                 {
                     "version": "v1",
                     "timestamp": "2025-06-30T10:00:00Z",
-                    "sha256": actual_hash,  # Use the real hash here
-                    "r2_object_key": "core-dataset/v1-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.sqlite",
+                    "sha256": v1_hash,
+                    "r2_object_key": f"core-dataset/v1-{v1_hash}.sqlite",
                     "diffFromPrevious": None,
                     "commit": "f4b8e7a",
-                }
+                },
             ],
         }
     ]
