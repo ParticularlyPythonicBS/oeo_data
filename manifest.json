@@ -89,15 +89,15 @@
   },
   {
     "fileName": "testing_git_worktree.sqlite",
-    "latestVersion": "v1",
+    "latestVersion": "v2",
     "history": [
       {
-        "version": "v1",
-        "timestamp": "2025-07-05T14:59:11.053629Z",
-        "sha256": "722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36",
-        "r2_object_key": "testing_git_worktree/v1-722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36.sqlite",
-        "diffFromPrevious": null,
-        "commit": "855a022"
+        "version": "v2",
+        "timestamp": "2025-07-05T15:00:14.489402Z",
+        "sha256": "7fc91d413e86c23a52572f154a406068b0743c81c68cc072bf9e1772c4a47449",
+        "r2_object_key": "testing_git_worktree/v2-7fc91d413e86c23a52572f154a406068b0743c81c68cc072bf9e1772c4a47449.sqlite",
+        "diffFromPrevious": "diffs/testing_git_worktree.sqlite/diff-v1-to-v2.diff",
+        "commit": "6cfd47d"
       }
     ]
   }

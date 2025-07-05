@@ -1,0 +1,9 @@
+--- /tmp/tmpwgw33egn/old.sql	2025-07-05 11:00:10.459765569 -0400
++++ /tmp/tmpwgw33egn/new.sql	2025-07-05 11:00:10.462765586 -0400
+@@ -2,5 +2,5 @@
+ BEGIN TRANSACTION;
+ CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+ INSERT INTO users VALUES(1,'Alicia');
+-INSERT INTO users VALUES(2,'ci2');
++INSERT INTO users VALUES(2,'basic');
+ COMMIT;
