@@ -86,5 +86,19 @@
         "commit": "f253df8"
       }
     ]
+  },
+  {
+    "fileName": "testing_git_worktree.sqlite",
+    "latestVersion": "v1",
+    "history": [
+      {
+        "version": "v1",
+        "timestamp": "2025-07-05T14:59:11.053629Z",
+        "sha256": "722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36",
+        "r2_object_key": "testing_git_worktree/v1-722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36.sqlite",
+        "diffFromPrevious": null,
+        "commit": "855a022"
+      }
+    ]
   }
 ]
