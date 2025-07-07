@@ -8,10 +8,9 @@
         "timestamp": "2025-07-07T15:18:36.264236Z",
         "sha256": "2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030",
         "r2_object_key": "test_database/v3-2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
-        "staging_key": "staging-uploads/2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
         "diffFromPrevious": "diffs/test_database.sqlite/diff-v2-to-v3.diff",
-        "commit": "pending-merge",
-        "description": "pending-merge"
+        "commit": "b097030",
+        "description": "test prep"
       },
       {
         "version": "v2",
