@@ -53,8 +53,9 @@ flowchart TD
 - **CI/CD-Driven Publishing:** Data publication is transactional and automated via GitHub Actions after a pull request is merged, preventing inconsistent states.
 - **Enhanced Security:** Production credentials are never stored on developer machines; they are only used by the trusted GitHub Actions runner.
 - **Interactive TUI:** Run `datamanager` with no arguments for a user-friendly, menu-driven interface.
+- **Data Lifecycle Management:** A full suite of commands for rollback, deletion, and pruning, all gated by the same secure PR workflow.
 - **Integrity Verification:** All downloaded files are automatically checked against their SHA256 hash from the manifest.
-- **Credential Verification:** A simple `verify` command to check your R2 configuration.
+- **Credential Verification:** A detailed verify command reports read/write/delete permissions for both production and staging buckets.
 
 ## Prerequisites
 
@@ -101,7 +102,7 @@ flowchart TD
     R2_ACCOUNT_ID="your_cloudflare_account_id"
     R2_ACCESS_KEY_ID="your_r2_access_key"
     R2_SECRET_ACCESS_KEY="your_r2_secret_key"
-    R2_BUCKET="your-production-bucket-name"
+    R2_PRODUCTION_BUCKET="your-production-bucket-name"
     R2_STAGING_BUCKET="your-staging-bucket-name"
     ```
 
@@ -112,7 +113,7 @@ flowchart TD
     uv run datamanager verify
     ```
 
-    ![Verify Output](https://github.com/user-attachments/assets/f208e8a1-b70a-4cf7-a9ad-2e3a96a83265)
+    ![Verify Output](assets/verification.png)
 
 ## 🚀 Usage
 
@@ -128,9 +129,15 @@ uv run datamanager
 
 This will launch a menu where you can choose your desired action, including the new "Prepare a dataset for release" option.
 
-![TUI](https://github.com/user-attachments/assets/425572b3-9185-4889-ace7-ea882dcd9af5)
+![TUI](assets/tui.png)
 
 ### Command-Line Interface (CLI)
+
+You can also use the command-line interface directly for specific tasks or for scripting purposes.
+
+![CLI](assets/cli.png)
+
+### Core Commands
 
 #### `prepare`
 
@@ -149,7 +156,7 @@ After running `prepare`, follow the on-screen instructions:
 3. `git push`
 4. Open a Pull Request in GitHub.
 
-![prepare](https://i.fluffy.cc/980D8BjQtFbX69vvS6G23QtXt1FMWhc1.png)
+![prepare](assets/prepare.png)
 
 #### `list-datasets`
 
@@ -159,7 +166,7 @@ Lists all datasets currently tracked in `manifest.json`.
 uv run datamanager list-datasets
 ```
 
-![list_datasets](https://github.com/user-attachments/assets/c641a330-99a4-463a-a877-6698996edb27)
+![list_datasets](assets/list_datasets.png)
 
 #### `pull`
 
@@ -173,11 +180,37 @@ uv run datamanager pull user-profiles.sqlite
 uv run datamanager pull user-profiles.sqlite --version v2
 ```
 
-![pulling](https://github.com/user-attachments/assets/275aae67-7bf3-47c2-90a4-db41cdc7e232)
+![pull](assets/pull.png)
+
+### Maintenance Commands
+
+#### `rollback`
+
+Prepares a rollback to a previous stable version by creating a new version entry that points to the old data.
+
+```bash
+uv run datamanager rollback <dataset-name.sqlite> --to-version v1
+```
+
+#### `delete`
+
+Prepares the **permanent** deletion of an entire dataset and all its versions. Requires strong confirmation.
+
+```bash
+uv run datamanager delete <dataset-name.sqlite>
+```
+
+#### `prune-versions`
+
+Prepares the permanent deletion of old versions of a dataset, keeping a specified number of recent versions.
+
+```bash
+uv run datamanager prune-versions <dataset-name.sqlite> --keep 5
+```
 
 #### `verify`
 
-Checks R2 credentials and bucket access.
+Checks R2 credentials and reports granular read/write/delete permissions for both production and staging buckets.
 
 ```bash
 uv run datamanager verify
