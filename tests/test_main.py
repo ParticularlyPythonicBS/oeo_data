@@ -126,24 +126,55 @@ def test_pull_command_version_not_found(test_repo: Path, mocker: MockerFixture) 
 
 def test_verify_command_success(mocker: MockerFixture) -> None:
     """Test the 'verify' command with successful credentials."""
-    mocker.patch(
-        "datamanager.core.verify_r2_access",
-        return_value=(True, "Success message!"),
-    )
+    # Mock the return value to simulate a successful check for both buckets
+    mock_return_value = [
+        {
+            "bucket_name": "production",
+            "exists": True,
+            "message": "Full access",
+            "permissions": {"read": True, "write": True, "delete": True},
+        },
+        {
+            "bucket_name": "staging",
+            "exists": True,
+            "message": "Full access",
+            "permissions": {"read": True, "write": True, "delete": True},
+        },
+    ]
+    mocker.patch("datamanager.core.verify_r2_access", return_value=mock_return_value)
+
     result = runner.invoke(app, ["verify"])
-    assert result.exit_code == 0
-    assert "✅ Verification successful!" in result.stdout
+
+    assert result.exit_code == 0, result.stdout
+    assert "All checks passed" in result.stdout
+    assert "production" in result.stdout
+    assert "staging" in result.stdout
 
 
 def test_verify_command_failure(mocker: MockerFixture) -> None:
-    """Test the 'verify' command with failed credentials."""
-    mocker.patch(
-        "datamanager.core.verify_r2_access",
-        return_value=(False, "Failure message!"),
-    )
+    """Test the 'verify' command when a bucket is not found."""
+    # Mock the return value to simulate a failure
+    mock_return_value = [
+        {
+            "bucket_name": "production",
+            "exists": False,
+            "message": "Bucket not found.",
+            "permissions": {"read": False, "write": False, "delete": False},
+        },
+        {
+            "bucket_name": "staging",
+            "exists": True,
+            "message": "Full access",
+            "permissions": {"read": True, "write": True, "delete": True},
+        },
+    ]
+    mocker.patch("datamanager.core.verify_r2_access", return_value=mock_return_value)
+
     result = runner.invoke(app, ["verify"])
-    assert result.exit_code == 1
-    assert "❌ Verification failed!" in result.stdout
+
+    assert result.exit_code == 1, result.stdout
+    assert "One or more critical checks failed" in result.stdout
+    assert "Bucket not found" in result.stdout
 
 
 def test_prepare_interactive_success(test_repo: Path, mocker: MockerFixture) -> None:

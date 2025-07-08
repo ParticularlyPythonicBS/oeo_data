@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path, PurePath
 import os
+import uuid
 
 from botocore.exceptions import ClientError
 
@@ -17,10 +18,25 @@ from rich.console import Console
 
 from types_boto3_s3.client import S3Client
 
+from typing import Any, TypedDict
+
 from datamanager.config import settings
 
 
 console = Console()
+
+
+class PermissionDict(TypedDict):
+    read: bool
+    write: bool
+    delete: bool
+
+
+class VerificationResult(TypedDict):
+    bucket_name: str
+    exists: bool
+    permissions: PermissionDict
+    message: str
 
 
 def get_r2_client() -> S3Client:
@@ -177,44 +193,92 @@ def delete_from_r2(client: S3Client, object_key: str) -> None:
         console.print("You may need to manually delete the object from your R2 bucket.")
 
 
-def verify_r2_access() -> tuple[bool, str]:
-    """
-    Verifies that the configured R2 credentials and bucket are accessible.
+def _check_bucket_permissions(client: Any, bucket_name: str) -> VerificationResult:
+    """Performs granular permission checks on a single bucket."""
+    results: VerificationResult = {
+        "bucket_name": bucket_name,
+        "exists": False,
+        "permissions": {"read": False, "write": False, "delete": False},
+        "message": "",
+    }
 
-    Returns:
-        A tuple containing a boolean for success and a status message.
-    """
+    # 1. Check for bucket existence and basic access
     try:
-        client = get_r2_client()
-        console.print(f"Attempting to access bucket: [cyan]{settings.bucket}[/]...")
-        client.head_bucket(Bucket=settings.bucket)
-        return (
-            True,
-            f"Successfully connected to bucket '{settings.bucket}'.",
-        )
+        client.head_bucket(Bucket=bucket_name)
+        results["exists"] = True
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code")
-        if error_code == "404" or "NoSuchBucket" in str(e):
-            return (
-                False,
-                f"Bucket '{settings.bucket}' not found. Please check the name.",
-            )
-        if error_code == "403" or "AccessDenied" in str(e):
-            return (
-                False,
-                "Access Denied. The provided credentials do not have permission "
-                f"to access the bucket '{settings.bucket}'.",
-            )
-        return (
-            False,
-            f"A client error occurred: {e}. Please check your credentials and endpoint.",
+        if error_code == "404":
+            results["message"] = "Bucket not found."
+        elif error_code == "403":
+            results["message"] = "Access Denied. Cannot view bucket."
+        else:
+            results["message"] = f"Connection error: {e}"
+        return results
+
+    # 2. Check for Read permission (by listing objects)
+    try:
+        client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+        results["permissions"]["read"] = True
+    except ClientError:
+        # Fails if ListBucket permission is denied
+        pass
+
+    # 3. Check for Write and Delete permissions (atomically)
+    test_key = f"datamanager-verify-test-{uuid.uuid4()}.tmp"
+    try:
+        # Test Write
+        client.put_object(Bucket=bucket_name, Key=test_key, Body=b"verify")
+        results["permissions"]["write"] = True
+        # Test Delete
+        client.delete_object(Bucket=bucket_name, Key=test_key)
+        results["permissions"]["delete"] = True
+    except ClientError:
+        # Fails if PutObject or DeleteObject is denied
+        pass
+    finally:
+        # Ensure the test object is always cleaned up if it was created
+        try:
+            client.delete_object(Bucket=bucket_name, Key=test_key)
+        except ClientError:
+            pass
+
+    # 4. Construct final message
+    if all(results["permissions"].values()):
+        results["message"] = "Full access verified."
+    else:
+        perms = ", ".join([k for k, v in results["permissions"].items() if v])
+        results["message"] = (
+            f"Partial access: [{perms}]" if perms else "No object permissions."
         )
+
+    return results
+
+
+def verify_r2_access() -> list[VerificationResult]:
+    """
+    Verifies granular permissions for both production and staging buckets.
+
+    Returns:
+        A list of result dictionaries, one for each bucket check.
+    """
+    results = []
+    try:
+        client = get_r2_client()
+        # Check Production Bucket
+        results.append(_check_bucket_permissions(client, settings.bucket))
+        # Check Staging Bucket
+        results.append(_check_bucket_permissions(client, settings.staging_bucket))
     except Exception as e:
-        return (
-            False,
-            f"An unexpected error occurred. This could be a network issue or an "
-            f"incorrect R2 endpoint URL. Error: {e}",
-        )
+        # Catches errors during client creation (e.g., bad endpoint)
+        connection_error: VerificationResult = {
+            "bucket_name": "Connection",
+            "exists": False,
+            "permissions": {"read": False, "write": False, "delete": False},
+            "message": f"Failed to create R2 client: {e}",
+        }
+        results.append(connection_error)
+    return results
 
 
 def upload_to_staging(client: S3Client, file_path: Path, object_key: str) -> None:

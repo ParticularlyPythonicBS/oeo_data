@@ -65,42 +65,56 @@ def test_r2_interactions(mocker: MockerFixture, tmp_path: Path) -> None:
     )
 
 
-def test_verify_r2_access_success(mocker: MockerFixture) -> None:
-    """Test successful R2 access verification."""
-    mock_client = MagicMock()
-    mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
+def test_verify_r2_access_full_permissions(mocker: MockerFixture) -> None:
+    """Test verification when credentials have full permissions."""
+    mock_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    # All boto3 calls succeed
+    mock_client.head_bucket.return_value = True
+    mock_client.list_objects_v2.return_value = True
+    mock_client.put_object.return_value = True
+    mock_client.delete_object.return_value = True
 
-    success, message = core.verify_r2_access()
+    results = core.verify_r2_access()
 
-    assert success is True
-    assert "Successfully connected" in message
-    mock_client.head_bucket.assert_called_once()
-
-
-def test_verify_r2_access_no_such_bucket(mocker: MockerFixture) -> None:
-    """Test R2 verification failure due to a non-existent bucket."""
-    mock_client = MagicMock()
-    mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response = {"Error": {"Code": "404", "Message": "Not Found"}}
-    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")  # type: ignore[arg-type]
-
-    success, message = core.verify_r2_access()
-
-    assert success is False
-    assert "not found" in message
+    # Should return results for both production and staging buckets
+    assert len(results) == 2
+    prod_result = results[0]
+    assert prod_result["exists"] is True
+    assert all(prod_result["permissions"].values())
+    assert "Full access" in prod_result["message"]
 
 
-def test_verify_r2_access_access_denied(mocker: MockerFixture) -> None:
-    """Test R2 verification failure due to permissions."""
-    mock_client = MagicMock()
-    mocker.patch("datamanager.core.get_r2_client", return_value=mock_client)
-    error_response = {"Error": {"Code": "403", "Message": "Access Denied"}}
-    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")  # type: ignore[arg-type]
+def test_verify_r2_access_read_only(mocker: MockerFixture) -> None:
+    """Test verification when credentials only have read permissions."""
+    mock_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    mock_client.head_bucket.return_value = True
+    mock_client.list_objects_v2.return_value = True
+    # Simulate write/delete failing with a generic ClientError
+    error_response: Any = {"Error": {"Code": "403", "Message": "Access Denied"}}
+    mock_client.put_object.side_effect = ClientError(error_response, "PutObject")
 
-    success, message = core.verify_r2_access()
+    results = core.verify_r2_access()
+    prod_result = results[0]
 
-    assert success is False
-    assert "Access Denied" in message
+    assert prod_result["exists"] is True
+    assert prod_result["permissions"]["read"] is True
+    assert prod_result["permissions"]["write"] is False
+    assert prod_result["permissions"]["delete"] is False
+    assert "Partial access: [read]" in prod_result["message"]
+
+
+def test_verify_r2_access_bucket_not_found(mocker: MockerFixture) -> None:
+    """Test verification when a bucket does not exist."""
+    mock_client = mocker.patch("datamanager.core.get_r2_client").return_value
+    error_response: Any = {"Error": {"Code": "404", "Message": "Not Found"}}
+    mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+
+    results = core.verify_r2_access()
+    prod_result = results[0]
+
+    assert prod_result["exists"] is False
+    assert not any(prod_result["permissions"].values())
+    assert "Bucket not found" in prod_result["message"]
 
 
 def test_pull_and_verify_hash_mismatch(mocker: MockerFixture, tmp_path: Path) -> None:

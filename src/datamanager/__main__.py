@@ -81,16 +81,45 @@ console = Console()
 
 @app.command()
 def verify(ctx: typer.Context) -> None:
-    """Verifies the Cloudflare R2 credentials and bucket access."""
+    """Verifies Cloudflare R2 credentials and granular bucket permissions."""
     console.print("🔍 Verifying Cloudflare R2 configuration...")
-    with console.status("[bold yellow]Connecting to R2...[/]"):
-        success, message = core.verify_r2_access()
 
-    if success:
-        console.print(f"[bold green]✅ Verification successful![/] {message}")
-    else:
-        console.print(f"[bold red]❌ Verification failed![/] {message}")
+    results = core.verify_r2_access()
+
+    table = Table(
+        "Target",
+        "Status",
+        "Read",
+        "Write",
+        "Delete",
+        "Details",
+        title="R2 Bucket Permissions Report",
+    )
+
+    overall_success = True
+    for res in results:
+        status_icon = (
+            "✅" if res["exists"] and all(res["permissions"].values()) else "❌"
+        )
+        if not res["exists"]:
+            overall_success = False
+
+        table.add_row(
+            f"[bold cyan]{res['bucket_name']}[/]",
+            f"{status_icon} {res['message']}",
+            "✅" if res["permissions"]["read"] else "❌",
+            "✅" if res["permissions"]["write"] else "❌",
+            "✅" if res["permissions"]["delete"] else "❌",
+            res["message"] if not res["exists"] else "",
+        )
+
+    console.print(table)
+
+    if not overall_success:
+        console.print("\n[bold red]One or more critical checks failed.[/]")
         raise typer.Exit(1)
+    else:
+        console.print("\n[bold green]All checks passed with expected permissions.[/]")
 
 
 @app.command()
