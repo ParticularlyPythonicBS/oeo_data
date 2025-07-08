@@ -496,18 +496,10 @@ def _rollback_interactive(ctx: typer.Context) -> None:
         pass
 
 
-@app.command()
-def delete(
-    ctx: typer.Context,
-    name: str = typer.Argument(..., help="The logical name of the dataset to delete."),
-) -> None:
-    """
-    Marks a dataset for permanent deletion.
-    This action is finalized via a Pull Request and CI/CD pipeline.
-    """
+def _run_delete_logic(ctx: typer.Context, name: str) -> None:
+    """The core logic for marking a dataset for deletion."""
     console.print(f"🗑️  Preparing deletion for [bold red]{name}[/].")
 
-    # Verify the dataset exists before proceeding
     if not manifest.get_dataset(name):
         console.print(f"[red]Error: Dataset '{name}' not found.[/]")
         raise typer.Exit(1)
@@ -516,7 +508,6 @@ def delete(
         "[bold yellow]WARNING:[/] This will propose the [underline]permanent deletion[/] of the dataset and all its version history from Cloudflare R2."
     )
 
-    # Use a text prompt for strong confirmation
     confirmation = questionary.text(
         f"To confirm, please type the name of the dataset ({name}):"
     ).ask()
@@ -525,7 +516,6 @@ def delete(
         console.print("Confirmation failed. Deletion cancelled.")
         return
 
-    # Mark the dataset for deletion in the manifest
     if manifest.mark_for_deletion(name):
         console.print(
             f"\n[bold green]✅ Dataset '{name}' has been marked for deletion.[/]"
@@ -538,20 +528,13 @@ def delete(
             "  4. Open a Pull Request to finalize the deletion."
         )
     else:
-        # This case should be caught by the check above, but is here for safety
         console.print(f"[red]Error: Could not mark '{name}' for deletion.[/]")
         raise typer.Exit(1)
 
 
-@app.command()
-def prune_versions(
-    ctx: typer.Context,
-    name: str = typer.Argument(..., help="The logical name of the dataset to prune."),
-    keep: int = typer.Option(
-        ..., "--keep", "-k", help="The number of most recent versions to keep."
-    ),
-) -> None:
-    """Marks old versions of a dataset for permanent deletion."""
+# --- New Refactored Prune Logic ---
+def _run_prune_versions_logic(ctx: typer.Context, name: str, keep: int) -> None:
+    """The core logic for marking old versions for deletion."""
     console.print(f"🔪 Preparing to prune old versions of [cyan]{name}[/]...")
 
     dataset = manifest.get_dataset(name)
@@ -586,7 +569,6 @@ def prune_versions(
         console.print("Pruning cancelled.")
         return
 
-    # Mark the versions for deletion in the manifest
     manifest.mark_versions_for_deletion(name, versions_to_delete)
     console.print(
         f"\n[bold green]✅ {len(versions_to_delete)} version(s) have been marked for deletion.[/]"
@@ -600,6 +582,87 @@ def prune_versions(
     )
 
 
+# --- Updated CLI Commands (now thin wrappers) ---
+@app.command()
+def delete(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="The logical name of the dataset to delete."),
+) -> None:
+    """Marks a dataset for permanent deletion via a PR."""
+    _run_delete_logic(ctx, name)
+
+
+@app.command()
+def prune_versions(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="The logical name of the dataset to prune."),
+    keep: int = typer.Option(
+        ..., "--keep", "-k", help="The number of most recent versions to keep."
+    ),
+) -> None:
+    """Marks old versions of a dataset for permanent deletion via a PR."""
+    _run_prune_versions_logic(ctx, name, keep)
+
+
+# --- New Interactive Functions for TUI ---
+def _delete_interactive(ctx: typer.Context) -> None:
+    """Guides the user through deleting a dataset interactively."""
+    console.print("\n[bold]Interactive Dataset Deletion[/]")
+    all_datasets = manifest.read_manifest()
+    if not all_datasets:
+        console.print("[yellow]No datasets found to delete.[/]")
+        return
+
+    dataset_names = [ds["fileName"] for ds in all_datasets]
+    selected_name = questionary.select(
+        "Which dataset would you like to mark for deletion?", choices=dataset_names
+    ).ask()
+
+    if selected_name is None:
+        console.print("Deletion cancelled.")
+        return
+
+    try:
+        _run_delete_logic(ctx, name=selected_name)
+    except typer.Exit:
+        pass
+
+
+def _prune_versions_interactive(ctx: typer.Context) -> None:
+    """Guides the user through pruning old versions interactively."""
+    console.print("\n[bold]Interactive Version Pruning[/]")
+    all_datasets = manifest.read_manifest()
+    if not all_datasets:
+        console.print("[yellow]No datasets found to prune.[/]")
+        return
+
+    dataset_names = [ds["fileName"] for ds in all_datasets]
+    selected_name = questionary.select(
+        "Which dataset would you like to prune?", choices=dataset_names
+    ).ask()
+
+    if selected_name is None:
+        console.print("Pruning cancelled.")
+        return
+
+    keep_str = questionary.text(
+        "How many of the most recent versions do you want to keep?",
+        validate=lambda text: text.isdigit()
+        and int(text) > 0
+        or "Please enter a positive number.",
+    ).ask()
+
+    if keep_str is None:
+        console.print("Pruning cancelled.")
+        return
+
+    try:
+        _run_prune_versions_logic(ctx, name=selected_name, keep=int(keep_str))
+    except typer.Exit:
+        pass
+
+
+# --- Final, Corrected Main TUI Callback ---
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
     """
@@ -609,7 +672,6 @@ def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> N
     ctx.ensure_object(dict)
     ctx.obj["no_prompt"] = no_prompt
 
-    # If a sub-command was provided just return – ctx.obj is now populated.
     if ctx.invoked_subcommand:
         return
 
@@ -620,13 +682,13 @@ def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> N
     console.print("[bold yellow]Welcome to the Data Manager TUI![/]")
 
     actions: dict[str, Callable[[typer.Context], None] | str] = {
-        "Verify R2 configuration": verify,
         "List all datasets": list_datasets,
         "Prepare a dataset for release": _prepare_interactive,
         "Pull a dataset version": _pull_interactive,
         "Rollback a dataset to a previous version": _rollback_interactive,
-        "Delete a dataset": delete,
-        "Prune old dataset versions": prune_versions,
+        "Delete a dataset": _delete_interactive,
+        "Prune old dataset versions": _prune_versions_interactive,
+        "Verify R2 configuration": verify,
         "Exit": "exit",
     }
 
@@ -640,9 +702,7 @@ def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> N
 
     action = actions[choice]
     if callable(action):
-        # Call the function directly
         action(ctx)
-
     else:
         raise NotImplementedError(f"Action '{choice}' is not implemented yet.")
 
