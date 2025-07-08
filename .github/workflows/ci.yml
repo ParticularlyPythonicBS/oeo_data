@@ -37,4 +37,9 @@ jobs:
           git config --global user.email "actions@github.com"
 
       - name: Run tests
-        run: uv run pytest tests
+        run: uv run pytest tests --cov --cov-branch --cov-report=xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
