@@ -532,7 +532,6 @@ def _run_delete_logic(ctx: typer.Context, name: str) -> None:
         raise typer.Exit(1)
 
 
-# --- New Refactored Prune Logic ---
 def _run_prune_versions_logic(ctx: typer.Context, name: str, keep: int) -> None:
     """The core logic for marking old versions for deletion."""
     console.print(f"🔪 Preparing to prune old versions of [cyan]{name}[/]...")
@@ -582,7 +581,6 @@ def _run_prune_versions_logic(ctx: typer.Context, name: str, keep: int) -> None:
     )
 
 
-# --- Updated CLI Commands (now thin wrappers) ---
 @app.command()
 def delete(
     ctx: typer.Context,
@@ -604,7 +602,6 @@ def prune_versions(
     _run_prune_versions_logic(ctx, name, keep)
 
 
-# --- New Interactive Functions for TUI ---
 def _delete_interactive(ctx: typer.Context) -> None:
     """Guides the user through deleting a dataset interactively."""
     console.print("\n[bold]Interactive Dataset Deletion[/]")
@@ -662,7 +659,6 @@ def _prune_versions_interactive(ctx: typer.Context) -> None:
         pass
 
 
-# --- Final, Corrected Main TUI Callback ---
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
     """
