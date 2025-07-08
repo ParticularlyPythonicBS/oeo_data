@@ -1,18 +1,1 @@
-[
-  {
-    "fileName": "test_database.sqlite",
-    "latestVersion": "v1",
-    "history": [
-      {
-        "version": "v1",
-        "timestamp": "2025-07-08T18:23:59.195045Z",
-        "sha256": "2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030",
-        "r2_object_key": "test_database/v1-2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
-        "diffFromPrevious": null,
-        "commit": "5086371",
-        "description": "test using new cloudflare bucket"
-      }
-    ],
-    "status": "pending-deletion"
-  }
-]
+[]
