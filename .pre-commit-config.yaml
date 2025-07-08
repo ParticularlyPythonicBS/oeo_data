@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.17
+    rev: 0.7.19
     hooks:
       # Dependency management
       - id: uv-lock
@@ -21,15 +21,9 @@ repos:
         args: ["--maxkb=1024"]
       - id: debug-statements
 
-    # upgrade Python syntax to the latest version
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
-    hooks:
-      - id: pyupgrade
-
     # Python Linting & Formatting with Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.1
+    rev: v0.12.2
     hooks:
       - id: ruff
         name: ruff (linter)
