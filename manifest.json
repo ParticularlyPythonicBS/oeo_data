@@ -4,31 +4,14 @@
     "latestVersion": "v1",
     "history": [
       {
-        "version": "v3",
-        "timestamp": "2025-07-07T15:18:36.264236Z",
-        "sha256": "2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030",
-        "r2_object_key": "test_database/v3-2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
-        "diffFromPrevious": "diffs/test_database.sqlite/diff-v2-to-v3.diff",
-        "commit": "b097030",
-        "description": "test prep"
-      },
-      {
-        "version": "v2",
-        "timestamp": "2025-07-02T14:41:03.917528Z",
-        "sha256": "722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36",
-        "r2_object_key": "test_database/v2-722405500032eab9353abb6fc12ab33f19ec3bdb228131dd66ca1c65faa5fd36.sqlite",
-        "diffFromPrevious": "diffs/test_database.sqlite/diff-v1-to-v2.diff",
-        "commit": "1e340a0",
-        "description": "testing updating dataset through ci strategy"
-      },
-      {
         "version": "v1",
-        "timestamp": "2025-07-02T14:27:23.659672Z",
-        "sha256": "a55bb96070652d1f16b5eab951b3dd5b90dcae63372b6403ab8e1bcafb6b679c",
-        "r2_object_key": "test_database/v1-a55bb96070652d1f16b5eab951b3dd5b90dcae63372b6403ab8e1bcafb6b679c.sqlite",
+        "timestamp": "2025-07-08T18:23:59.195045Z",
+        "sha256": "2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030",
+        "r2_object_key": "test_database/v1-2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
+        "staging_key": "staging-uploads/2612c9f7c2a7addfb28e5944c267dd0749ec7b9cb1bd93199ea0e7da08448030.sqlite",
         "diffFromPrevious": null,
-        "commit": "2a20e53",
-        "description": "testing creating dataset with ci strategy"
+        "commit": "pending-merge",
+        "description": "pending-merge"
       }
     ]
   }
