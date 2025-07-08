@@ -12,6 +12,7 @@
         "commit": "5086371",
         "description": "test using new cloudflare bucket"
       }
-    ]
+    ],
+    "status": "pending-deletion"
   }
 ]
