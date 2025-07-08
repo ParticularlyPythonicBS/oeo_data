@@ -1,5 +1,9 @@
 # OEO Data Management
 
+[![codecov](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data/branch/develop/graph/badge.svg?token=O1ZU4OE5UY)](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data)
+[![CI](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml)
+[![Publish Dataset to R2](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml)
+
 This repository provides a command-line tool (`datamanager`) to manage large, versioned datasets (like SQLite files) using Git for metadata and Cloudflare R2 for object storage.
 
 This approach avoids the pitfalls of storing large binary files directly in Git while still providing a robust, auditable version history for your data assets through a secure, CI/CD-driven workflow.
