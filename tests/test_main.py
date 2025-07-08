@@ -343,3 +343,76 @@ def test_rollback_user_cancel(test_repo: Path, mocker: MockerFixture) -> None:
     # Verify the manifest file was not changed
     final_manifest = manifest.read_manifest()
     assert final_manifest == original_manifest
+
+
+def test_delete_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test successfully marking a dataset for deletion."""
+    os.chdir(test_repo)
+    # Mock the text confirmation to succeed
+    mocker.patch(
+        "questionary.text",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value="core-dataset.sqlite")),
+    )
+
+    result = runner.invoke(app, ["delete", "core-dataset.sqlite"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "has been marked for deletion" in result.stdout
+
+    # Verify the manifest was updated with the status flag
+    dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert dataset is not None
+    assert dataset.get("status") == "pending-deletion"
+
+
+def test_delete_confirmation_failed(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test that deletion is cancelled if the typed confirmation is wrong."""
+    os.chdir(test_repo)
+    # Mock the text confirmation to fail
+    mocker.patch(
+        "questionary.text",
+        return_value=mocker.Mock(ask=mocker.Mock(return_value="wrong-name")),
+    )
+    original_manifest = manifest.read_manifest()
+
+    result = runner.invoke(app, ["delete", "core-dataset.sqlite"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Confirmation failed. Deletion cancelled." in result.stdout
+
+    # Verify the manifest was NOT changed
+    final_manifest = manifest.read_manifest()
+    assert final_manifest == original_manifest
+
+
+def test_prune_versions_success(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test successfully marking old versions for deletion."""
+    os.chdir(test_repo)
+    mocker.patch("datamanager.__main__._ask_confirm", return_value=True)
+
+    # Act: Keep the latest 1 version, which should mark v1 for deletion
+    result = runner.invoke(
+        app, ["prune-versions", "core-dataset.sqlite", "--keep", "1"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "1 version(s) have been marked for deletion" in result.stdout
+
+    # Assert: Check that the v1 entry in the manifest is now marked
+    dataset = manifest.get_dataset("core-dataset.sqlite")
+    assert dataset is not None
+    v2_entry = dataset["history"][0]
+    v1_entry = dataset["history"][1]
+    assert "status" not in v2_entry  # v2 is kept, should not be marked
+    assert v1_entry.get("status") == "pending-deletion"
+
+
+def test_prune_versions_no_op(test_repo: Path, mocker: MockerFixture) -> None:
+    """Test pruning when the number to keep is >= the number of versions."""
+    os.chdir(test_repo)
+    result = runner.invoke(
+        app, ["prune-versions", "core-dataset.sqlite", "--keep", "5"]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "No action needed" in result.stdout

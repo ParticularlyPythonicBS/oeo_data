@@ -496,6 +496,110 @@ def _rollback_interactive(ctx: typer.Context) -> None:
         pass
 
 
+@app.command()
+def delete(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="The logical name of the dataset to delete."),
+) -> None:
+    """
+    Marks a dataset for permanent deletion.
+    This action is finalized via a Pull Request and CI/CD pipeline.
+    """
+    console.print(f"🗑️  Preparing deletion for [bold red]{name}[/].")
+
+    # Verify the dataset exists before proceeding
+    if not manifest.get_dataset(name):
+        console.print(f"[red]Error: Dataset '{name}' not found.[/]")
+        raise typer.Exit(1)
+
+    console.print(
+        "[bold yellow]WARNING:[/] This will propose the [underline]permanent deletion[/] of the dataset and all its version history from Cloudflare R2."
+    )
+
+    # Use a text prompt for strong confirmation
+    confirmation = questionary.text(
+        f"To confirm, please type the name of the dataset ({name}):"
+    ).ask()
+
+    if confirmation != name:
+        console.print("Confirmation failed. Deletion cancelled.")
+        return
+
+    # Mark the dataset for deletion in the manifest
+    if manifest.mark_for_deletion(name):
+        console.print(
+            f"\n[bold green]✅ Dataset '{name}' has been marked for deletion.[/]"
+        )
+        console.print(
+            "\nNext steps:\n"
+            f"  1. [cyan]git add {settings.manifest_file}[/]\n"
+            f'  2. [cyan]git commit -m "chore: Mark {name} for deletion"[/]\n'
+            "  3. [cyan]git push[/]\n"
+            "  4. Open a Pull Request to finalize the deletion."
+        )
+    else:
+        # This case should be caught by the check above, but is here for safety
+        console.print(f"[red]Error: Could not mark '{name}' for deletion.[/]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def prune_versions(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="The logical name of the dataset to prune."),
+    keep: int = typer.Option(
+        ..., "--keep", "-k", help="The number of most recent versions to keep."
+    ),
+) -> None:
+    """Marks old versions of a dataset for permanent deletion."""
+    console.print(f"🔪 Preparing to prune old versions of [cyan]{name}[/]...")
+
+    dataset = manifest.get_dataset(name)
+    if not dataset:
+        console.print(f"[red]Error: Dataset '{name}' not found.[/]")
+        raise typer.Exit(1)
+
+    history = dataset.get("history", [])
+    if len(history) <= keep:
+        console.print(
+            f"✅ No action needed. Dataset has {len(history)} version(s), which is not more than the {keep} to keep."
+        )
+        return
+
+    versions_to_keep = [entry["version"] for entry in history[:keep]]
+    versions_to_delete = [entry["version"] for entry in history[keep:]]
+
+    console.print(
+        f"You have chosen to keep the [bold green]{keep}[/] most recent version(s):"
+    )
+    for v in versions_to_keep:
+        console.print(f"  - [green]{v}[/]")
+
+    console.print(
+        f"\nThe following [bold red]{len(versions_to_delete)}[/] older version(s) will be marked for permanent deletion:"
+    )
+    for v in versions_to_delete:
+        console.print(f"  - [red]{v}[/]")
+
+    proceed = _ask_confirm(ctx, "\nDo you want to continue?", default=False)
+    if not proceed:
+        console.print("Pruning cancelled.")
+        return
+
+    # Mark the versions for deletion in the manifest
+    manifest.mark_versions_for_deletion(name, versions_to_delete)
+    console.print(
+        f"\n[bold green]✅ {len(versions_to_delete)} version(s) have been marked for deletion.[/]"
+    )
+    console.print(
+        "\nNext steps:\n"
+        f"  1. [cyan]git add {settings.manifest_file}[/]\n"
+        f'  2. [cyan]git commit -m "chore: Prune old versions of {name}, keeping {keep}"[/]\n'
+        "  3. [cyan]git push[/]\n"
+        "  4. Open a Pull Request to finalize the deletion."
+    )
+
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> None:
     """
@@ -521,6 +625,8 @@ def main(ctx: typer.Context, no_prompt: bool = COMMON_OPTIONS["no_prompt"]) -> N
         "Prepare a dataset for release": _prepare_interactive,
         "Pull a dataset version": _pull_interactive,
         "Rollback a dataset to a previous version": _rollback_interactive,
+        "Delete a dataset": delete,
+        "Prune old dataset versions": prune_versions,
         "Exit": "exit",
     }
 

@@ -210,3 +210,39 @@ def update_dataset(name: str, updated_dataset: dict[str, Any]) -> None:
             data[i] = updated_dataset
             break
     write_manifest(data)
+
+
+def mark_for_deletion(name: str) -> bool:
+    """
+    Finds a dataset and adds a 'status: pending-deletion' flag.
+    Returns True if the dataset was found and marked, False otherwise.
+    """
+    data = read_manifest()
+    dataset_found = False
+    for item in data:
+        if item.get("fileName") == name:
+            item["status"] = "pending-deletion"
+            dataset_found = True
+            break
+    if dataset_found:
+        write_manifest(data)
+    return dataset_found
+
+
+def mark_versions_for_deletion(name: str, versions_to_delete: list[str]) -> bool:
+    """
+    Finds a dataset and adds a 'status: pending-deletion' flag to specific
+    history entries. Returns True on success.
+    """
+    data = read_manifest()
+    dataset_found = False
+    for item in data:
+        if item.get("fileName") == name:
+            dataset_found = True
+            for entry in item.get("history", []):
+                if entry.get("version") in versions_to_delete:
+                    entry["status"] = "pending-deletion"
+            break
+    if dataset_found:
+        write_manifest(data)
+    return dataset_found
