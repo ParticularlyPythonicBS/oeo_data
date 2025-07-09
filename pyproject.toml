@@ -28,6 +28,14 @@ dev = [
 [project.scripts]
 datamanager = "datamanager.__main__:app"
 
+[project.optional-dependencies]
+docs = [
+    "furo>=2024.8.6",
+    "myst-parser>=4.0.1",
+    "sphinx>=8.2.3",
+    "sphinx-autobuild>=2024.10.3",
+]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

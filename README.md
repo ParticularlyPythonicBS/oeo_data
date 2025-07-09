@@ -1,6 +1,7 @@
 # OEO Data Management
 
 [![codecov](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data/branch/develop/graph/badge.svg?token=O1ZU4OE5UY)](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/ParticularlyPythonicBS/oeo_data/main.svg)](https://results.pre-commit.ci/latest/github/ParticularlyPythonicBS/oeo_data/main)
 [![CI](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml)
 [![Publish Dataset to R2](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml)
 [![Cleanup Staging Bucket](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml/badge.svg)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml)
