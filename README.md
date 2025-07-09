@@ -144,7 +144,7 @@ Use the `datamanager` tool to stage your changes. The `prepare` command handles 
 
 ```bash
 # This uploads the file to the staging bucket and updates manifest.json locally
-uv run datamanager prepare census-data.sqlite ./local-files/new-census.sqlite
+uv run datamanager prepare energy-data.sqlite ./local-files/new-energy.sqlite
 ```
 
 The tool will guide you through the process. For other maintenance tasks like `rollback` or `delete`, use the corresponding command.
@@ -155,8 +155,8 @@ Commit the modified `manifest.json` file to your branch with a descriptive messa
 
 ```bash
 git add manifest.json
-git commit -m "feat: Add 2025 census data with new demographic columns"
-git push --set-upstream origin feat/update-census-data
+git commit -m "feat: Add 2025 energy data with new technology columns"
+git push --set-upstream origin feat/update-energy-data
 ```
 
 ### Step 4: Open a Pull Request
