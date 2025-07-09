@@ -3,10 +3,14 @@
 [![codecov](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data/branch/develop/graph/badge.svg?token=O1ZU4OE5UY)](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data)
 [![CI](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml)
 [![Publish Dataset to R2](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml)
+[![Cleanup Staging Bucket](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml/badge.svg)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml)
 
-This repository provides a command-line tool (`datamanager`) to manage large, versioned datasets (like SQLite files) using Git for metadata and Cloudflare R2 for object storage.
+This is the official repository for versioned input databases used by the Open Energy Outlook (OEO) initiative. It contains a command-line tool (datamanager) designed to manage these Temoa-compatible SQLite databases using a secure, auditable, and CI/CD-driven workflow.
 
-This approach avoids the pitfalls of storing large binary files directly in Git while still providing a robust, auditable version history for your data assets through a secure, CI/CD-driven workflow.
+## About the Data
+
+The SQLite databases hosted here are designed to be used as inputs for [Temoa](https://github.com/TemoaProject/temoa), an open-source energy system optimization model.
+This data is curated and maintained by the Open Energy Outlook (OEO) team. The goal is to provide a transparent, version-controlled, and publicly accessible set of data for energy systems modeling and analysis.
 
 ## The Core Concept
 
@@ -118,6 +122,55 @@ flowchart TD
     ```
 
     ![Verify Output](assets/verification.png)
+
+## 📖 The Data Publishing Workflow
+
+All changes to the data—whether creating, updating, or deleting—follow a strict, safe, and reviewable Git-based workflow.
+
+### Step 1: Create a New Branch
+
+Always start by creating a new branch from the latest version of `main`. This isolates your changes.
+
+```bash
+git checkout main
+git pull
+git checkout -b feat/update-census-data
+```
+
+### Step 2: Prepare Your Changes
+
+Use the `datamanager` tool to stage your changes. The `prepare` command handles both creating new datasets and updating existing ones.
+
+```bash
+# This uploads the file to the staging bucket and updates manifest.json locally
+uv run datamanager prepare census-data.sqlite ./local-files/new-census.sqlite
+```
+
+The tool will guide you through the process. For other maintenance tasks like `rollback` or `delete`, use the corresponding command.
+
+### Step 3: Commit and Push
+
+Commit the modified `manifest.json` file to your branch with a descriptive message. This message will become the official description for the new data version.
+
+```bash
+git add manifest.json
+git commit -m "feat: Add 2025 census data with new demographic columns"
+git push --set-upstream origin feat/update-census-data
+```
+
+### Step 4: Open a Pull Request
+
+Go to GitHub and open a pull request from your feature branch to `main`. The diff will clearly show the proposed changes to the manifest for your team to review.
+
+### Step 5: Merge and Automate
+
+Once the PR is reviewed, approved, and all status checks pass, merge it. The CI/CD pipeline takes over automatically:
+
+- It copies the data from the staging bucket to the production bucket.
+- It finalizes the `manifest.json` with the new commit hash and description.
+- It pushes a final commit back to `main`.
+
+The new data version is now live and available to all users via `datamanager pull`.
 
 ## 🚀 Usage
 
