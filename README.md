@@ -1,6 +1,7 @@
 # OEO Data Management
 
 [![codecov](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data/branch/develop/graph/badge.svg?token=O1ZU4OE5UY)](https://codecov.io/gh/ParticularlyPythonicBS/oeo_data)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/ParticularlyPythonicBS/oeo_data/main.svg)](https://results.pre-commit.ci/latest/github/ParticularlyPythonicBS/oeo_data/main)
 [![CI](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/ci.yml)
 [![Publish Dataset to R2](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml/badge.svg?branch=develop)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/publish.yml)
 [![Cleanup Staging Bucket](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml/badge.svg)](https://github.com/ParticularlyPythonicBS/oeo_data/actions/workflows/cleanup.yml)
@@ -134,7 +135,7 @@ Always start by creating a new branch from the latest version of `main`. This is
 ```bash
 git checkout main
 git pull
-git checkout -b feat/update-census-data
+git checkout -b feat/update-energy-data
 ```
 
 ### Step 2: Prepare Your Changes
