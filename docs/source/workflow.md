@@ -9,7 +9,7 @@ Always start by creating a new branch from the latest version of `main`.
 ```bash
 git checkout main
 git pull
-git checkout -b feat/update-census-data
+git checkout -b feat/update-energy-data
 ```
 
 ### Step 2: Prepare Your Changes
@@ -17,7 +17,7 @@ git checkout -b feat/update-census-data
 Use the `datamanager` tool to stage your changes. The `prepare` command handles both creating new datasets and updating existing ones.
 
 ```bash
-uv run datamanager prepare census-data.sqlite ./local-files/new-census.sqlite
+uv run datamanager prepare energy-data.sqlite ./local-files/new-energy.sqlite
 ```
 
 ### Step 3: Commit and Push
@@ -26,8 +26,8 @@ Commit the modified `manifest.json` file with a descriptive message. This messag
 
 ```bash
 git add manifest.json
-git commit -m "feat: Add 2025 census data with new demographic columns"
-git push --set-upstream origin feat/update-census-data
+git commit -m "feat: Add 2025 energy data with new demographic columns"
+git push --set-upstream origin feat/update-energy-data
 ```
 
 ### Step 4: Open a Pull Request

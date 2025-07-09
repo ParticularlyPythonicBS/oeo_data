@@ -135,7 +135,7 @@ Always start by creating a new branch from the latest version of `main`. This is
 ```bash
 git checkout main
 git pull
-git checkout -b feat/update-census-data
+git checkout -b feat/update-energy-data
 ```
 
 ### Step 2: Prepare Your Changes
