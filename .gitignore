@@ -18,6 +18,7 @@
 !netlify.toml
 !manifest.json
 !env.example
+!.readthedocs.yaml
 
 # recursively re-ignore
 __pycache__
