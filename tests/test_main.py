@@ -37,55 +37,77 @@ def test_prepare_for_create_success(test_repo: Path, mocker: MockerFixture) -> N
 def test_prepare_for_update_with_small_diff(
     test_repo: Path, mocker: MockerFixture
 ) -> None:
-    """Test an update that generates and stores a small diff."""
+    """Test an update that generates and stores both summary+full diff."""
     os.chdir(test_repo)
     mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
-    # Configure head_object to prevent TypeError in the download progress bar
     mock_r2_client.head_object.return_value = {"ContentLength": 1024}
     mocker.patch("datamanager.core.upload_to_staging")
     mocker.patch("datamanager.core.download_from_r2")
-    mocker.patch("datamanager.core.generate_sql_diff", return_value="--- a\n+++ b")
+
+    # Prepare a fake summary and full diff
+    fake_summary = "# summary: 1 add, 1 del\n"
+    fake_full = "--- a\n+++ b\n-foo\n+bar\n"
+    mocker.patch(
+        "datamanager.core.generate_sql_diff",
+        return_value=(fake_full, fake_summary),
+    )
 
     v3_file = test_repo / "v3_data.sqlite"
     v3_file.write_text("this is v3")
 
     result = runner.invoke(app, ["prepare", "core-dataset.sqlite", str(v3_file)])
-
     assert result.exit_code == 0, result.stdout
-    assert "Diff stored in Git" in result.stdout
+    assert "Full diff stored in Git" in result.stdout
 
-    expected_diff_path = Path("diffs/core-dataset.sqlite/diff-v2-to-v3.diff")
-    assert expected_diff_path.exists()
+    expected = Path("diffs/core-dataset.sqlite/diff-v2-to-v3.diff")
+    assert expected.exists()
 
-    dataset = manifest.get_dataset("core-dataset.sqlite")
-    assert dataset is not None, "Dataset should not be None after preparation."
-    assert dataset["history"][0]["diffFromPrevious"] == str(expected_diff_path)
+    # Now verify the file contains summary first, then full diff
+    content = expected.read_text()
+    assert content == fake_summary + fake_full
+
+    ds = manifest.get_dataset("core-dataset.sqlite")
+    assert ds is not None
+    assert ds["history"][0]["diffFromPrevious"] == str(expected)
 
 
 def test_prepare_for_update_with_large_diff(
     test_repo: Path, mocker: MockerFixture
 ) -> None:
-    """Test an update where the diff is too large and is omitted."""
+    """Test an update where the full diff is too large and only summary is stored."""
     os.chdir(test_repo)
     mock_r2_client = mocker.patch("datamanager.core.get_r2_client").return_value
     mock_r2_client.head_object.return_value = {"ContentLength": 1024}
     mocker.patch("datamanager.core.upload_to_staging")
     mocker.patch("datamanager.core.download_from_r2")
-    # Make the diff larger than the default MAX_DIFF_LINES
-    large_diff = "line\n" * (settings.max_diff_lines + 1)
-    mocker.patch("datamanager.core.generate_sql_diff", return_value=large_diff)
+    # Make the full diff larger than the default limit, but still provide a summary
+    large_full = "line\n" * (settings.max_diff_lines + 1)
+    small_summary = "# summary: huge diff, see details in PR\n"
+    mocker.patch(
+        "datamanager.core.generate_sql_diff",
+        return_value=(large_full, small_summary),
+    )
 
     v3_file = test_repo / "v3_data.sqlite"
     v3_file.write_text("this is v3")
 
     result = runner.invoke(app, ["prepare", "core-dataset.sqlite", str(v3_file)])
-
     assert result.exit_code == 0, result.stdout
-    assert "Diff is too large" in result.stdout
 
+    # We should see that the full diff was too large but a summary was stored
+    assert "too large" in result.stdout.lower()
+
+    expected_diff_path = Path("diffs/core-dataset.sqlite/diff-v2-to-v3.diff")
+    assert expected_diff_path.exists(), "Summary file should have been written"
+
+    # The manifest should record the path
     dataset = manifest.get_dataset("core-dataset.sqlite")
-    assert dataset is not None, "Dataset should not be None after preparation."
-    assert dataset["history"][0]["diffFromPrevious"] is None
+    assert dataset is not None
+    assert dataset["history"][0]["diffFromPrevious"] == str(expected_diff_path)
+
+    # And the contents of that file should be exactly our summary
+    content = expected_diff_path.read_text()
+    assert content == small_summary
 
 
 def test_prepare_no_changes(test_repo: Path, mocker: MockerFixture) -> None:

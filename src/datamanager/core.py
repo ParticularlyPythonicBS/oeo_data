@@ -5,7 +5,6 @@ import io
 import shutil
 import sqlite3
 import subprocess
-import tempfile
 from pathlib import Path, PurePath
 import os
 import uuid
@@ -127,40 +126,37 @@ def pull_and_verify(object_key: str, expected_hash: str, output_path: Path) -> b
         return False
 
 
-def generate_sql_diff(old_file: Path, new_file: Path) -> str:
+def generate_sql_diff(old_file: Path, new_file: Path) -> tuple[str, str]:
     """
-    Return a unified diff of the SQL schema/data between two SQLite files.
+    Return (full_diff, summary) between two SQLite files.
 
-    - If both sqlite cli and diff are available, use them (fast path).
-    - Otherwise fall back to std-lib `sqlite3` + `difflib` (pure-Python).
+    - If `sqldiff` CLI is available, use that for both full and summary.
+    - Otherwise fall back to sqlite3 + difflib, and synthesize a summary.
     """
 
-    has_cli = shutil.which("sqlite3") and shutil.which("diff")
+    # Try sqldiff CLI first
+    if shutil.which("sqldiff"):
+        # Full diff
+        proc_full = subprocess.run(
+            ["sqldiff", str(old_file), str(new_file)],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        full_diff = proc_full.stdout
 
-    if has_cli:
-        with tempfile.TemporaryDirectory() as tmp:
-            old_dump, new_dump = Path(tmp) / "old.sql", Path(tmp) / "new.sql"
-            subprocess.run(
-                ["sqlite3", str(old_file), ".dump"],
-                text=True,
-                check=True,
-                stdout=old_dump.open("w"),
-            )
-            subprocess.run(
-                ["sqlite3", str(new_file), ".dump"],
-                text=True,
-                check=True,
-                stdout=new_dump.open("w"),
-            )
-            proc = subprocess.run(
-                ["diff", "-u", str(old_dump), str(new_dump)],
-                text=True,
-                capture_output=True,
-            )
-            return proc.stdout
+        # Summary (sqldiff --summary)
+        proc_sum = subprocess.run(
+            ["sqldiff", "--summary", str(old_file), str(new_file)],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        summary = proc_sum.stdout
 
-    # pure-Python fallback
+        return full_diff, summary
 
+    # Pure-Python fallback: dump both DBs and diff
     def _dump(db: Path) -> str:
         buf = io.StringIO()
         con = sqlite3.connect(db)
@@ -169,14 +165,31 @@ def generate_sql_diff(old_file: Path, new_file: Path) -> str:
         con.close()
         return buf.getvalue()
 
-    old_sql, new_sql = _dump(old_file), _dump(new_file)
+    old_sql = _dump(old_file)
+    new_sql = _dump(new_file)
+
     diff_iter = difflib.unified_diff(
         old_sql.splitlines(keepends=True),
         new_sql.splitlines(keepends=True),
         fromfile=str(PurePath(old_file).name),
         tofile=str(PurePath(new_file).name),
     )
-    return "".join(diff_iter)
+    full_diff = "".join(diff_iter)
+
+    # Synthesize a summary: count ADDs and DELs
+    adds = sum(
+        1
+        for ln in full_diff.splitlines()
+        if ln.startswith("+") and not ln.startswith("+++")
+    )
+    dels = sum(
+        1
+        for ln in full_diff.splitlines()
+        if ln.startswith("-") and not ln.startswith("---")
+    )
+    summary = f"# summary: {adds} additions, {dels} deletions\n"
+
+    return full_diff, summary
 
 
 def delete_from_r2(client: S3Client, object_key: str) -> None:

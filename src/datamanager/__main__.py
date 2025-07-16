@@ -288,18 +288,23 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
             old_path = Path(tempdir) / "prev.sqlite"
             # Download from the PRODUCTION bucket
             core.download_from_r2(client, latest_version["r2_object_key"], old_path)
-            diff_text = core.generate_sql_diff(old_path, file)
 
-        if diff_text.count("\n") <= settings.max_diff_lines:
-            diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
-            # Store diffs in a dedicated top-level directory
-            diff_git_path = Path("diffs") / name / diff_filename
-            diff_git_path.parent.mkdir(parents=True, exist_ok=True)
-            diff_git_path.write_text(diff_text)
-            subprocess.run(["git", "add", str(diff_git_path)])
-            console.print(f"📝  Diff stored in Git at: [green]{diff_git_path}[/]")
+        full_diff, summary = core.generate_sql_diff(old_path, file)
+
+        if full_diff.count("\n") <= settings.max_diff_lines:
+            to_save = summary + full_diff
+            msg = "📝  Full diff stored in Git at:"
         else:
-            console.print("📝  Diff is too large – omitted from Git.")
+            to_save = summary
+            msg = "📝  Full diff too large; summary stored in Git at:"
+
+        diff_filename = f"diff-{latest_version['version']}-to-{new_version}.diff"
+        diff_git_path = Path("diffs") / name / diff_filename
+        diff_git_path.parent.mkdir(parents=True, exist_ok=True)
+        diff_git_path.write_text(to_save)
+        subprocess.run(["git", "add", str(diff_git_path)])
+
+        console.print(f"{msg} [green]{diff_git_path}[/]")
 
         new_entry = {
             "version": new_version,
