@@ -5,7 +5,6 @@ import io
 import shutil
 import sqlite3
 import subprocess
-import tempfile
 from pathlib import Path, PurePath
 import os
 import uuid
