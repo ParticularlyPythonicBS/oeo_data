@@ -40,9 +40,21 @@ def test_generate_sql_diff(tmp_path: Path) -> None:
     con.commit()
     con.close()
 
-    diff = core.generate_sql_diff(old_db_path, new_db_path)
-    assert "-INSERT INTO users VALUES(1,'Alice');" in diff
-    assert "+INSERT INTO users VALUES(2,'Bob');" in diff
+    full_diff, summary = core.generate_sql_diff(old_db_path, new_db_path)
+
+    # We should see evidence of the change in full_diff:
+    #   - either an UPDATE statement from sqldiff,
+    #   - or a "+INSERT ..." / "-INSERT ..." style from the fallback.
+    assert "Bob" in full_diff, f"full_diff did not mention Bob:\n{full_diff}"
+    assert (
+        "UPDATE users SET" in full_diff
+        or "+INSERT INTO" in full_diff
+        or "-INSERT INTO" in full_diff
+    ), f"unexpected diff format:\n{full_diff}"
+
+    # And summary should be a non‐empty string
+    assert isinstance(summary, str)
+    assert summary.strip(), "Summary should not be empty"
 
 
 def test_r2_interactions(mocker: MockerFixture, tmp_path: Path) -> None:
