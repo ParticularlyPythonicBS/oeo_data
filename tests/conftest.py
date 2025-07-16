@@ -40,7 +40,6 @@ def test_repo(tmp_path: Path) -> Generator[Path, Any, None]:
     con.close()
     v2_hash = hash_file(v2_db_path)
 
-    # FIX: Build the manifest dynamically with the correct, distinct hashes
     manifest_data = [
         {
             "fileName": "core-dataset.sqlite",
