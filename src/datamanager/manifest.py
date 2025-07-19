@@ -95,7 +95,8 @@ def add_history_entry(name: str, new_entry: dict[str, Any]) -> None:
     Adds a new version entry to the beginning of a dataset's history.
 
     This function is used to add the temporary placeholder before the final
-    commit hash is known.
+    commit hash is known. It only works for existing datasets. For creating
+    new datasets, use add_new_dataset() instead.
 
     Args:
         name: The 'fileName' of the dataset to update.
@@ -111,9 +112,8 @@ def add_history_entry(name: str, new_entry: dict[str, Any]) -> None:
             break
 
     if not dataset_found:
-        # This would be for creating a brand new dataset entry
-        # For now, we assume we only update existing ones.
-        # A 'datamanager create' command could use this logic.
+        # We only update existing datasets. For creating new datasets,
+        # use add_new_dataset() instead.
         console.print(f"Dataset '{name}' not found. Cannot add history.")
         return
 
