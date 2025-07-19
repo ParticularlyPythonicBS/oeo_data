@@ -24,5 +24,3 @@ Submodules
    /api/datamanager/config/index
    /api/datamanager/core/index
    /api/datamanager/manifest/index
-
-

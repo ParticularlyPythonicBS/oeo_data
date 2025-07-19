@@ -152,5 +152,3 @@ Module Contents
 .. py:function:: upload_to_staging(client: types_boto3_s3.client.S3Client, file_path: pathlib.Path, object_key: str) -> None
 
    Uploads a file to the STAGING R2 bucket with a progress bar.
-
-

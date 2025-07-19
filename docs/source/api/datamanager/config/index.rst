@@ -73,4 +73,3 @@ Module Contents
 
 
 .. py:data:: settings
-

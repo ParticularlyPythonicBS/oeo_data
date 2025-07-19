@@ -96,5 +96,3 @@ Module Contents
 
    Finds a dataset by name and replaces the entire object.
    Used for amending the commit hash after the initial commit.
-
-
