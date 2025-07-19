@@ -1,0 +1,2 @@
+users: 1 changes, 0 inserts, 0 deletes, 1 unchanged
+UPDATE users SET name='testing sqldiffing' WHERE id=2;

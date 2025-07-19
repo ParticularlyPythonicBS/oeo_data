@@ -4,6 +4,16 @@
     "latestVersion": "v1",
     "history": [
       {
+        "version": "v3",
+        "timestamp": "2025-07-19T15:09:30.356015Z",
+        "sha256": "6c37e0744a6f49f8b3e5b24b74080c2ae845b925633ccefa81193201639bee12",
+        "r2_object_key": "test_database/v3-6c37e0744a6f49f8b3e5b24b74080c2ae845b925633ccefa81193201639bee12.sqlite",
+        "staging_key": "staging-uploads/6c37e0744a6f49f8b3e5b24b74080c2ae845b925633ccefa81193201639bee12.sqlite",
+        "diffFromPrevious": "diffs/test_database.sqlite/diff-v2-to-v3.diff",
+        "commit": "pending-merge",
+        "description": "pending-merge"
+      },
+      {
         "version": "v2",
         "timestamp": "2025-07-08T21:11:37.340350Z",
         "sha256": "e287b00772296e3ae8d65699570662ff316d8dae50deef4041fde65ca73202a5",
