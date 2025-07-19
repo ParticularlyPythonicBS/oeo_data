@@ -289,7 +289,7 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
             # Download from the PRODUCTION bucket
             core.download_from_r2(client, latest_version["r2_object_key"], old_path)
 
-        full_diff, summary = core.generate_sql_diff(old_path, file)
+            full_diff, summary = core.generate_sql_diff(old_path, file)
 
         if full_diff.count("\n") <= settings.max_diff_lines:
             to_save = summary + full_diff
