@@ -10,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from typing import Callable, Optional, cast, Any
+from typing import Callable, Optional, Any
 
 from datamanager.config import settings
 from datamanager import core, manifest
@@ -25,35 +25,6 @@ COMMON_OPTIONS = dict(
         help="Run non-interactively: auto-accept all prompts and use defaults.",
     )
 )
-
-
-# Git helpers
-def _stage_all() -> None:
-    """Stage every working-tree change."""
-    subprocess.run(["git", "add", "-A"], check=True)
-
-
-def _build_detached_commit(message: str) -> str:
-    """
-    Create a commit object from the **current index** without
-    moving HEAD.  Returns the full commit SHA.
-    """
-    tree = subprocess.check_output(["git", "write-tree"], text=True).strip()
-    parent = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    sha = subprocess.check_output(
-        ["git", "commit-tree", tree, "-p", parent, "-m", message],
-        text=True,
-    ).strip()
-    return sha
-
-
-# Prompt helpers
-def _ask_text(ctx: typer.Context, prompt: str, default: str) -> str:
-    if ctx.obj.get("no_prompt"):  # ← global flag
-        console.print(f"[cyan]--yes[/] given – using default message: '{default}'")
-        return default
-    result: Optional[str] = questionary.text(prompt, default=default).ask()
-    return cast(str, result)
 
 
 def _ask_confirm(ctx: typer.Context, prompt: str, default: bool = False) -> bool:
@@ -321,7 +292,7 @@ def _run_prepare_logic(ctx: typer.Context, name: str, file: Path) -> None:
         manifest.add_history_entry(name, new_entry)
 
     else:
-        # --- This is for CREATE
+        # --- This is for CREATE ---
         new_dataset_obj = {
             "fileName": name,
             "latestVersion": "v1",
