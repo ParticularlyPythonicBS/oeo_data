@@ -1,5 +1,0 @@
-boto3>=1.38.46
-python-dotenv>=1.1.1
-questionary>=2.1.0
-rich>=14.0.0
-typer>=0.16.0

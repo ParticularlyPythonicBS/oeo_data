@@ -22,3 +22,5 @@
 
 # recursively re-ignore
 __pycache__
+docs/build
+*.egg-info
