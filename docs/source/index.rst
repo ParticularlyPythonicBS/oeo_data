@@ -14,6 +14,6 @@ This tool provides a command-line interface and a secure, CI/CD-driven workflow 
    :maxdepth: 2
    :caption: Contents:
 
+   datamanager/datamanager
    workflow
-   usage
    api_reference

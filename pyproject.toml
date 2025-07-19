@@ -52,3 +52,5 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = "--cov=datamanager --cov-report term"
+
+tool.uv.package = true

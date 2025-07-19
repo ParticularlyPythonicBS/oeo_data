@@ -14,3 +14,9 @@ datamanager.manifest
 
 .. automodule:: datamanager.manifest
    :members:
+
+datamanager.__main__
+--------------------
+
+.. automodule:: datamanager.__main__
+   :members:
