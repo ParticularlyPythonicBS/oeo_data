@@ -159,7 +159,7 @@ def handle_publications(manifest_data: List[Dict[str, Any]]) -> bool:
                 dataset["history"][i] = entry
                 finalize_manifest(
                     manifest_data,
-                    f"ci: Publish {dataset['fileName']} v{entry['version']}",
+                    f"ci: Publish {dataset['fileName']} {entry['version']}",
                 )
                 return True  # Process only one publication per run
 
