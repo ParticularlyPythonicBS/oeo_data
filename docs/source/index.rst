@@ -108,4 +108,5 @@ Prerequisites
    setup
    workflow
    usage
+   datasets
    api/index
