@@ -8,10 +8,9 @@
         "timestamp": "2025-07-25T16:13:20.872123Z",
         "sha256": "6d60f0035a80de92c3f3df433212699e0584a09a7d4943693ae0889d98640641",
         "r2_object_key": "test_database/v4-6d60f0035a80de92c3f3df433212699e0584a09a7d4943693ae0889d98640641.sqlite",
-        "staging_key": "staging-uploads/6d60f0035a80de92c3f3df433212699e0584a09a7d4943693ae0889d98640641.sqlite",
         "diffFromPrevious": "diffs/test_database.sqlite/diff-v3-to-v4.diff",
-        "commit": "pending-merge",
-        "description": "pending-merge"
+        "commit": "5803a97",
+        "description": "testing the autogenerating data docs script"
       },
       {
         "version": "v3",
