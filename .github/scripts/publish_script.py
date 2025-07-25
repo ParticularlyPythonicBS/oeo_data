@@ -1,7 +1,8 @@
 import os
 import json
 import subprocess
-from typing import Any, Dict, List
+
+from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
@@ -13,6 +14,8 @@ PROD_BUCKET = os.environ["R2_PRODUCTION_BUCKET"]
 STAGING_BUCKET = os.environ["R2_STAGING_BUCKET"]
 ENDPOINT_URL = f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com"
 MANIFEST_FILE = "manifest.json"
+DATASETS_DOC_PATH = "docs/source/datasets.md"
+BASE_DOWNLOAD_URL = "https://data.openenergyoutlook.org/"
 
 # --- Boto3 S3 Client ---
 client = boto3.client(
@@ -23,7 +26,7 @@ client = boto3.client(
 )
 
 
-def get_commit_details() -> Dict[str, str]:
+def get_commit_details() -> dict[str, str]:
     """Gets the hash and subject of the latest commit affecting the manifest."""
     commit_hash = (
         subprocess.check_output(
@@ -42,7 +45,64 @@ def get_commit_details() -> Dict[str, str]:
     return {"hash": commit_hash, "subject": commit_subject}
 
 
-def finalize_manifest(updated_data: List[Dict[str, Any]], commit_message: str) -> None:
+def finalize_dataset_docs(manifest_data: list[dict[str, Any]]) -> None:
+    """
+    Reads updated manifest and generates a Markdown table of datasets and their
+    versions including download lionks, and writes it to docs
+    """
+
+    markdown_content = "# Available Datasets\n\n"
+    markdown_content += (
+        "This page lists all versioned datasets managed by the OEO Data Management tool, "
+        "\n\n"
+    )
+
+    markdown_content += (
+        "| Dataset Name | Version | Timestamp (UTC) | Description | Download |\n"
+        "|--------------|---------|-----------------|-------------|----------|\n"
+    )
+
+    manifest_data.sort(key=lambda x: x["fileName"])
+
+    for dataset in manifest_data:
+        file_name = dataset["fileName"]
+        history_sorted = sorted(
+            dataset.get("history", []),
+            key=lambda x: x.get("timestamp", ""),
+            reverse=True,
+        )
+        for version_entry in history_sorted:
+            version = version_entry.get("version", "N/A")
+            # Remove 'Z' from timestamp for cleaner display in docs
+            timestamp = version_entry.get("timestamp", "N/A").replace("Z", "")
+            # Ensure description is single-line for table markdown
+            description = version_entry.get("description", "").replace("\n", " ")
+            r2_object_key = version_entry.get("r2_object_key")
+
+            download_link = "N/A"
+            if r2_object_key:
+                # Construct the full download URL
+                full_url = f"{BASE_DOWNLOAD_URL}{r2_object_key}"
+                download_link = f"[Download]({full_url})"
+
+            markdown_content += (
+                f"| {file_name} "
+                f"| {version} "
+                f"| {timestamp} "
+                f"| {description} "
+                f"| {download_link} |\n"
+            )
+
+    with open(DATASETS_DOC_PATH, "w") as f:
+        f.write(markdown_content)
+
+    subprocess.run(["git", "add", DATASETS_DOC_PATH])
+    subprocess.run(
+        ["git", "commit", "-m", "Updating dataset docs to reflect manifest file"]
+    )
+
+
+def finalize_manifest(updated_data: list[dict[str, Any]], commit_message: str) -> None:
     """Writes the updated manifest, commits, and pushes the changes."""
     print("\nFinalizing manifest file...")
     with open(MANIFEST_FILE, "w") as f:
@@ -56,11 +116,14 @@ def finalize_manifest(updated_data: List[Dict[str, Any]], commit_message: str) -
     )
     subprocess.run(["git", "add", MANIFEST_FILE])
     subprocess.run(["git", "commit", "-m", commit_message])
+
+    finalize_dataset_docs(updated_data)
+
     subprocess.run(["git", "push"])
     print("✅ Manifest finalized.")
 
 
-def handle_deletions(manifest_data: List[Dict[str, Any]]) -> bool:
+def handle_deletions(manifest_data: list[dict[str, Any]]) -> bool:
     """
     Scans for and processes all pending deletions.
     Returns True if any deletions were processed.
@@ -103,7 +166,7 @@ def handle_deletions(manifest_data: List[Dict[str, Any]]) -> bool:
             f"\nDeleting {len(objects_to_delete_from_r2)} objects from production R2 bucket..."
         )
         for i in range(0, len(objects_to_delete_from_r2), 1000):
-            chunk = objects_to_delete_from_r2[i : i + 1000]
+            chunk: Any = objects_to_delete_from_r2[i : i + 1000]
             response = client.delete_objects(
                 Bucket=PROD_BUCKET, Delete={"Objects": chunk, "Quiet": True}
             )
@@ -116,7 +179,7 @@ def handle_deletions(manifest_data: List[Dict[str, Any]]) -> bool:
     return True
 
 
-def handle_publications(manifest_data: List[Dict[str, Any]]) -> bool:
+def handle_publications(manifest_data: list[dict[str, Any]]) -> bool:
     """
     Scans for and processes one pending publication or rollback.
     Returns True if a publication was processed.
@@ -167,7 +230,7 @@ def handle_publications(manifest_data: List[Dict[str, Any]]) -> bool:
     return False
 
 
-def main():
+def main() -> None:
     """Main execution block."""
     print("Starting dataset publish/cleanup process...")
     with open(MANIFEST_FILE) as f:
