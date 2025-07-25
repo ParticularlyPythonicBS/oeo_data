@@ -53,7 +53,7 @@ def finalize_dataset_docs(manifest_data: list[dict[str, Any]]) -> None:
 
     markdown_content = "# Available Datasets\n\n"
     markdown_content += (
-        "This page lists all versioned datasets managed by the OEO Data Management tool, "
+        "This page lists all versioned datasets managed by the OEO Data Management tool,"
         "\n\n"
     )
 
